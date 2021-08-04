@@ -20,46 +20,41 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering autoimport
 """
 
 import json
-import requests
 
+import requests
 from olclient.bots import AbstractBotJob
 
 
 class AddNytBestsellerJob(AbstractBotJob):
-    @staticmethod
-    def need_to_add_nyt_bestseller_tag(work)-> bool:
+    def __init__(self):
+        super().__init__(job_name='AddNytBestseller')
+
+    def need_to_add_nyt_bestseller_tag(self, work) -> bool:
         """Returns False if the book already has
         a tag that starts with 'nyt:'"""
-        for subj in work['subjects']:
-            if subj.startswith(('nyt:', 'nytimes:')):
-                return False
-        return True
-
-    @staticmethod
-    def add_tag(work, new_tag) -> None:
-        """Adds a new tag to a work"""
-        if 'subjects' not in work:
-            work['subjects'] = list(new_tag)
-        else:
-            work['subjects'].append(new_tag)
-
-    def book_exists_in_ol(self, book_isbn) -> bool:
-        """Returns True if Edition with book_isbn exists.
-        Returns False otherwise"""
         try:
-            found_edition = self.ol.Edition.get(isbn=book_isbn)
-            self.logger.info('found edition {} for isbn {}'.format(
-                repr(found_edition),
-                book_isbn ))
-            if not found_edition:
-                self.logger.info('Not found edition for ISBN {}'.format(book_isbn))
-                return False
-            self.logger.info('Found edition for ISBN {}'.format(book_isbn))
+            for subj in work.subjects:
+                if subj.startswith(('nyt:')):
+                    return False
             return True
-        except Exception as e:
-            # TODO check the exception type
-            job.logger.exception('There is no book with ISBN {}'.format(book_isbn))
-            return False
+        except AttributeError:
+            self.logger.exception('Failed to check subjects for work {}'
+                                  .format(work.olid))
+            return True
+
+    def add_tag(self, work, new_tag) -> None:
+        """Adds a new tag to a work"""
+        try:
+            work.subjects.append(new_tag)
+            self.logger.info(
+                'Successfully appended new NYT tag to work {}'.format(
+                    work.olid))
+        except AttributeError:
+            work.subjects = [new_tag]
+            self.logger.exception(
+                'Failed to append subjects list for work {} but '
+                'SUCCESSFULLY CREATED new subjects list with NYT tag '.format(
+                    work.olid))
 
     def request_book_import_by_isbn(self, book_isbn) -> None:
         """ Makes request to the book_isbn
@@ -67,7 +62,7 @@ class AddNytBestsellerJob(AbstractBotJob):
         url = 'https://openlibrary.org/isbn/{}'.format(book_isbn)
         try:
             requests.get(url)
-            job.logger.info('Made request to {}'.format(url))
+            self.logger.info('Made request to {}'.format(url))
         except Exception as e:
             self.logger.error('Failed to make request to {}'.format(url))
 
@@ -77,30 +72,41 @@ class AddNytBestsellerJob(AbstractBotJob):
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
-            if 'error' not in bestsellers_data:
-                for bestseller_group_record in bestsellers_data:
-                    new_tag = 'nyt:{}={}'.format(
-                        bestseller_group_record['list_name_encoded'],
-                        bestseller_group_record['published_date'] )
-                    for bstslr_record_isbn in bestseller_group_record['isbns']:
-                        if self.book_exists_in_ol(bstslr_record_isbn):
+            for bestseller_group_record in bestsellers_data:
+                new_tag = 'nyt:{}={}'.format(
+                    bestseller_group_record['list_name_encoded'],
+                    bestseller_group_record['published_date'])
+                for bstslr_record_isbn in bestseller_group_record['isbns']:
+                    try:
+                        bstslr_edition = self.ol.Edition. \
+                            get(isbn=bstslr_record_isbn)
+                        if bstslr_edition:
                             self.logger.info('The edition {} exists in OL'
-                                             .format (bstslr_record_isbn))
-                            bstslr_edition = self.ol.Edition.get(
-                                isbn=bstslr_record_isbn)
-                            bstslr_work = bstslr_edition.work()
-                            if self.need_to_add_nyt_bestseller_tag(bstslr_work):
+                                             .format(bstslr_record_isbn))
+                            if self.need_to_add_nyt_bestseller_tag(
+                                bstslr_edition.work):
                                 self.logger.info(
-                                    'The NYT tag to be added for edition {}'
-                                        .format(bstslr_record_isbn))
-                                self.add_tag(bstslr_work, new_tag)
-                                bstslr_work.save(comment)
+                                    'The NYT tag to be added for the work {}'
+                                    ' of the edition {}'
+                                        .format(bstslr_edition.work.olid,
+                                                bstslr_record_isbn))
+                                self.add_tag(bstslr_edition.work, new_tag)
+                                bstslr_edition.work.save(comment)
                                 bstslr_edition.save(comment)
+                            else:
+                                self.logger.info(
+                                    'The NYT tag already exists for the work {}'
+                                    ' of the edition {}, skipping'
+                                        .format(bstslr_edition.work.olid,
+                                                bstslr_record_isbn))
                         else:
                             self.logger.info(
                                 'The edition {} doesnt exist in OL, importing'
                                     .format(bstslr_record_isbn))
                             self.request_book_import_by_isbn(bstslr_record_isbn)
+                    except:
+                        self.logger.exception('Failed to process ISBN {}'
+                                              .format(bstslr_record_isbn))
 
 
 if __name__ == "__main__":
@@ -109,5 +115,5 @@ if __name__ == "__main__":
     try:
         job.run()
     except Exception as e:
-        job.logger.exception("")
+        job.logger.exception("The AddNytBestsellerJob thrown an exception")
         raise e
