@@ -1,7 +1,10 @@
 # App specific
 result.json
+add_nyt_bestseller_result.json
 .env
 Pipfile
+
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

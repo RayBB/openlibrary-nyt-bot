@@ -66,60 +66,71 @@ class AddNytBestsellerJob(AbstractBotJob):
         except Exception as e:
             self.logger.error('Failed to make request to {}'.format(url))
 
-    def save_job_resutls(self, job_results):
+    def save_job_resutls(self, job_results) -> None:
         self.logger.info('Job execution results: {}'.format(repr(job_results)))
         with open('add_nyt_bestseller_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
+    def process_found_bestseller_edition(self, bstslr_record_isbn,
+        bstslr_edition,
+        new_tag, comment, job_results) -> None:
+        self.logger.info('The edition {} exists in OL'
+                         .format(bstslr_record_isbn))
+        if self.need_to_add_nyt_bestseller_tag(
+            bstslr_edition.work):
+            self.logger.info(
+                'The NYT tag to be added for the work {} of the edition {}'
+                    .format(bstslr_edition.work.olid,
+                            bstslr_record_isbn))
+            self.add_tag(bstslr_edition.work, new_tag)
+            bstslr_edition.work.save(comment)
+            bstslr_edition.save(comment)
+            job_results['tags_added'] = job_results['tags_added'] + 1
+        else:
+            self.logger.info(
+                'The NYT tag already exists for the work {}'
+                ' of the edition {}, skipping'
+                    .format(bstslr_edition.work.olid, bstslr_record_isbn))
+            job_results['tags_already_exist'] = \
+                job_results['tags_already_exist'] + 1
+
+    def process_bestseller_group_record(self, bestseller_group_record, comment,
+        job_results) -> None:
+        new_tag = 'nyt:{}={}'.format(
+            bestseller_group_record['list_name_encoded'],
+            bestseller_group_record['published_date'])
+        for bstslr_record_isbn in bestseller_group_record['isbns']:
+            try:
+                bstslr_edition = self.ol.Edition.get(
+                    isbn=bstslr_record_isbn)
+                if bstslr_edition:
+                    self.process_found_bestseller_edition(bstslr_record_isbn,
+                                                          bstslr_edition,
+                                                          new_tag, comment,
+                                                          job_results)
+                else:
+                    self.logger.info(
+                        'The edition {} doesnt exist in OL, importing'
+                            .format(bstslr_record_isbn))
+                    self.request_book_import_by_isbn(bstslr_record_isbn)
+                    job_results['books_imported'] = job_results[
+                                                        'books_imported'] + 1
+            except:
+                self.logger.exception('Failed to process ISBN {}'
+                                      .format(bstslr_record_isbn))
+                job_results['isbns_failed'] = job_results['isbns_failed'] + 1
+
     def run(self) -> None:  # overwrites the AbstractBotJob run method
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
-                       'tags_added': 0, 'tags_already_exist': 0}
+                       'tags_added': 0, 'tags_already_exist': 0,
+                       'isbns_failed': 0}
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
             for bestseller_group_record in bestsellers_data:
-                new_tag = 'nyt:{}={}'.format(
-                    bestseller_group_record['list_name_encoded'],
-                    bestseller_group_record['published_date'])
-                for bstslr_record_isbn in bestseller_group_record['isbns']:
-                    try:
-                        bstslr_edition = self.ol.Edition. \
-                            get(isbn=bstslr_record_isbn)
-                        if bstslr_edition:
-                            self.logger.info('The edition {} exists in OL'
-                                             .format(bstslr_record_isbn))
-                            if self.need_to_add_nyt_bestseller_tag(
-                                bstslr_edition.work):
-                                self.logger.info(
-                                    'The NYT tag to be added for the work {}'
-                                    ' of the edition {}'
-                                        .format(bstslr_edition.work.olid,
-                                                bstslr_record_isbn))
-                                self.add_tag(bstslr_edition.work, new_tag)
-                                bstslr_edition.work.save(comment)
-                                bstslr_edition.save(comment)
-                                job_results['tags_added'] = \
-                                    job_results['tags_added'] + 1
-                            else:
-                                self.logger.info(
-                                    'The NYT tag already exists for the work {}'
-                                    ' of the edition {}, skipping {}'
-                                        .format(bstslr_edition.work.olid,
-                                                bstslr_record_isbn,
-                                                repr(bstslr_edition.work)))
-                                job_results['tags_already_exist'] = \
-                                    job_results['tags_already_exist'] + 1
-                        else:
-                            self.logger.info(
-                                'The edition {} doesnt exist in OL, importing'
-                                    .format(bstslr_record_isbn))
-                            self.request_book_import_by_isbn(bstslr_record_isbn)
-                            job_results['books_imported'] = \
-                                job_results['books_imported'] + 1
-                    except:
-                        self.logger.exception('Failed to process ISBN {}'
-                                              .format(bstslr_record_isbn))
+                self.process_bestseller_group_record(bestseller_group_record,
+                                                     comment, job_results)
         self.save_job_resutls(job_results)
 
 
