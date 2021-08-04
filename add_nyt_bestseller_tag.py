@@ -124,7 +124,7 @@ class AddNytBestsellerJob(AbstractBotJob):
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'tags_added': 0, 'tags_already_exist': 0,
-                       'isbns_failed': 0}
+                       'isbns_failed': 0, 'dry_run': self.dry_run}
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
