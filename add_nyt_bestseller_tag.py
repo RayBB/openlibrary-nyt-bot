@@ -52,7 +52,8 @@ class AddNytBestsellerJob(AbstractBotJob):
         except AttributeError:
             work.subjects = [new_tag]
             self.logger.exception(
-                'Failed to append subjects list for work {} but SUCCESSFULLY CREATED new subjects list with NYT tag '.format(
+                'Failed to append subjects list for work {} but '
+                'SUCCESSFULLY CREATED new subjects list with NYT tag '.format(
                     work.olid))
 
     def request_book_import_by_isbn(self, book_isbn) -> None:
@@ -85,14 +86,19 @@ class AddNytBestsellerJob(AbstractBotJob):
                             if self.need_to_add_nyt_bestseller_tag(
                                 bstslr_edition.work):
                                 self.logger.info(
-                                    'The NYT tag to be added for the work {} of the edition {}'
-                                        .format(bstslr_edition.work.olid, bstslr_record_isbn))
+                                    'The NYT tag to be added for the work {}'
+                                    ' of the edition {}'
+                                        .format(bstslr_edition.work.olid,
+                                                bstslr_record_isbn))
                                 self.add_tag(bstslr_edition.work, new_tag)
                                 bstslr_edition.work.save(comment)
                                 bstslr_edition.save(comment)
                             else:
-                                self.logger.info('The NYT tag already exists for the work {} of the edition {}, skipping'
-                                        .format(bstslr_edition.work.olid, bstslr_record_isbn))
+                                self.logger.info(
+                                    'The NYT tag already exists for the work {}'
+                                    ' of the edition {}, skipping'
+                                        .format(bstslr_edition.work.olid,
+                                                bstslr_record_isbn))
                         else:
                             self.logger.info(
                                 'The edition {} doesnt exist in OL, importing'
