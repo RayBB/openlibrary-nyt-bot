@@ -66,9 +66,15 @@ class AddNytBestsellerJob(AbstractBotJob):
         except Exception as e:
             self.logger.error('Failed to make request to {}'.format(url))
 
+    def save_job_resutls(self, job_results):
+        self.logger.info('Job execution results: {}'.format(repr(job_results)))
+        with open('add_nyt_bestseller_result.json', 'w', encoding='utf-8') as f:
+            json.dump(job_results, f, ensure_ascii=False, indent=4)
+
     def run(self) -> None:  # overwrites the AbstractBotJob run method
         self.dry_run_declaration()
-
+        job_results = {'input_file': self.args.file, 'books_imported': 0,
+                       'tags_added': 0, 'tags_already_exist': 0}
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
@@ -93,20 +99,28 @@ class AddNytBestsellerJob(AbstractBotJob):
                                 self.add_tag(bstslr_edition.work, new_tag)
                                 bstslr_edition.work.save(comment)
                                 bstslr_edition.save(comment)
+                                job_results['tags_added'] = \
+                                    job_results['tags_added'] + 1
                             else:
                                 self.logger.info(
                                     'The NYT tag already exists for the work {}'
-                                    ' of the edition {}, skipping'
+                                    ' of the edition {}, skipping {}'
                                         .format(bstslr_edition.work.olid,
-                                                bstslr_record_isbn))
+                                                bstslr_record_isbn,
+                                                repr(bstslr_edition.work)))
+                                job_results['tags_already_exist'] = \
+                                    job_results['tags_already_exist'] + 1
                         else:
                             self.logger.info(
                                 'The edition {} doesnt exist in OL, importing'
                                     .format(bstslr_record_isbn))
                             self.request_book_import_by_isbn(bstslr_record_isbn)
+                            job_results['books_imported'] = \
+                                job_results['books_imported'] + 1
                     except:
                         self.logger.exception('Failed to process ISBN {}'
                                               .format(bstslr_record_isbn))
+        self.save_job_resutls(job_results)
 
 
 if __name__ == "__main__":
