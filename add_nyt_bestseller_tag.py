@@ -1,5 +1,7 @@
 """
-A bot to add a NYT bestseller tag 'nyt:{list_name_encoded}={published_date}' to each book from the list of isbns.
+A bot to add a NYT bestseller tags 'nyt:{list_name_encoded}={published_date}'
+and 'New York Times bestseller' to each book from the list of ISBNs.
+
 The list of bestsellers to add is a json file of the following format:
 [
     {
@@ -12,11 +14,12 @@ The list of bestsellers to add is a json file of the following format:
     },
 ]
 This script would be called from the command line like so:
-$ python add_nyt_bestseller_tag.py --file=~/nyt_bstslrs.json --limit=1 --dry-run=True
+$ python add_nyt_bestseller_tag.py --file=~/nyt_bstslrs.json
+--limit=1 --dry-run=True
 NOTE: This script checks if there is a tag on a book that starts with
 'nyt:' and if the book has such a tag the script does nothing.
 If there is no such book with requested isbn in the OL, the script makes request
-by the book isbn https://openlibrary.org/isbn/{isbn} , triggering autoimport
+by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 """
 
 import json
@@ -26,6 +29,9 @@ from olclient.bots import AbstractBotJob
 
 
 class AddNytBestsellerJob(AbstractBotJob):
+    NYT_TAG_PREFIX = 'nyt:'
+    NYT_TAG_BESTSELLER = 'New York Times bestseller'
+
     def __init__(self):
         super().__init__(job_name='AddNytBestseller')
 
@@ -34,26 +40,28 @@ class AddNytBestsellerJob(AbstractBotJob):
         a tag that starts with 'nyt:'"""
         try:
             for subj in work.subjects:
-                if subj.startswith(('nyt:')):
+                if subj.startswith(
+                    (self.NYT_TAG_PREFIX, self.NYT_TAG_BESTSELLER)):
                     return False
             return True
         except AttributeError:
-            self.logger.exception('Failed to check subjects for work {}'
-                                  .format(work.olid))
+            self.logger.info(
+                'Failed to check subjects for work {}, no subject list exist'
+                .format(work.olid))
             return True
 
-    def add_tag(self, work, new_tag) -> None:
+    def add_tags(self, work, new_tags) -> None:
         """Adds a new tag to a work"""
         try:
-            work.subjects.append(new_tag)
+            work.subjects.extend(new_tags)
             self.logger.info(
-                'Successfully appended new NYT tag to work {}'.format(
+                'Successfully extended new NYT tags to work {}'.format(
                     work.olid))
         except AttributeError:
-            work.subjects = [new_tag]
-            self.logger.exception(
+            work.subjects = new_tags
+            self.logger.info(
                 'Failed to append subjects list for work {} but '
-                'SUCCESSFULLY CREATED new subjects list with NYT tag '.format(
+                'SUCCESSFULLY CREATED new subjects list with NYT tags'.format(
                     work.olid))
 
     def request_book_import_by_isbn(self, book_isbn) -> None:
@@ -61,7 +69,8 @@ class AddNytBestsellerJob(AbstractBotJob):
         https://openlibrary.org/isbn/{book_isbn} """
         url = 'https://openlibrary.org/isbn/{}'.format(book_isbn)
         try:
-            requests.get(url)
+            if not self.dry_run:
+                requests.get(url)
             self.logger.info('Made request to {}'.format(url))
         except Exception as e:
             self.logger.error('Failed to make request to {}'.format(url))
@@ -72,23 +81,19 @@ class AddNytBestsellerJob(AbstractBotJob):
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
     def process_found_bestseller_edition(self, bstslr_record_isbn,
-        bstslr_edition,
-        new_tag, comment, job_results) -> None:
-        self.logger.info('The edition {} exists in OL'
-                         .format(bstslr_record_isbn))
-        if self.need_to_add_nyt_bestseller_tag(
-            bstslr_edition.work):
+        bstslr_edition, new_tags, comment, job_results) -> None:
+        if self.need_to_add_nyt_bestseller_tag(bstslr_edition.work):
             self.logger.info(
-                'The NYT tag to be added for the work {} of the edition {}'
+                'The NYT tags to be added for the work {} of the edition {}'
                     .format(bstslr_edition.work.olid,
                             bstslr_record_isbn))
-            self.add_tag(bstslr_edition.work, new_tag)
+            self.add_tags(bstslr_edition.work, new_tags)
             bstslr_edition.work.save(comment)
             bstslr_edition.save(comment)
             job_results['tags_added'] = job_results['tags_added'] + 1
         else:
             self.logger.info(
-                'The NYT tag already exists for the work {}'
+                'A NYT tag already exists for the work {}'
                 ' of the edition {}, skipping'
                     .format(bstslr_edition.work.olid, bstslr_record_isbn))
             job_results['tags_already_exist'] = \
@@ -96,9 +101,11 @@ class AddNytBestsellerJob(AbstractBotJob):
 
     def process_bestseller_group_record(self, bestseller_group_record, comment,
         job_results) -> None:
-        new_tag = 'nyt:{}={}'.format(
+        new_tags = ['{}{}={}'.format(
+            self.NYT_TAG_PREFIX,
             bestseller_group_record['list_name_encoded'],
-            bestseller_group_record['published_date'])
+            bestseller_group_record['published_date']),
+            self.NYT_TAG_BESTSELLER]
         for bstslr_record_isbn in bestseller_group_record['isbns']:
             try:
                 bstslr_edition = self.ol.Edition.get(
@@ -106,7 +113,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                 if bstslr_edition:
                     self.process_found_bestseller_edition(bstslr_record_isbn,
                                                           bstslr_edition,
-                                                          new_tag, comment,
+                                                          new_tags, comment,
                                                           job_results)
                 else:
                     self.logger.info(
