@@ -14,8 +14,7 @@ The list of bestsellers to add is a json file of the following format:
     },
 ]
 This script would be called from the command line like so:
-$ python add_nyt_bestseller_tag.py --file=~/nyt_bstslrs.json
---limit=1 --dry-run=True
+$ python3 add_nyt_bestseller_tag.py --file=~/nyt_bstslrs.json --dry-run=True
 NOTE: This script checks if there is a tag on a book that starts with
 'nyt:' and if the book has such a tag the script does nothing.
 If there is no such book with requested isbn in the OL, the script makes request
@@ -31,26 +30,27 @@ from olclient.bots import AbstractBotJob
 class AddNytBestsellerJob(AbstractBotJob):
     NYT_TAG_PREFIX = 'nyt:'
     NYT_TAG_BESTSELLER = 'New York Times bestseller'
+    OL_IMPORT_URL_TEMPLATE = 'https://openlibrary.org/isbn/{}'
 
     def __init__(self):
         super().__init__(job_name='AddNytBestseller')
 
-    def need_to_add_nyt_bestseller_tag(self, work) -> bool:
+    def __need_to_add_nyt_bestseller_tag(self, work) -> bool:
         """Returns False if the book already has
         a tag that starts with 'nyt:'"""
         try:
             for subj in work.subjects:
-                if subj.startswith(
-                    (self.NYT_TAG_PREFIX, self.NYT_TAG_BESTSELLER)):
+                if subj.startswith((self.NYT_TAG_PREFIX,
+                                    self.NYT_TAG_BESTSELLER)):
                     return False
             return True
         except AttributeError:
             self.logger.info(
                 'Failed to check subjects for work {}, no subject list exist'
-                .format(work.olid))
+                    .format(work.olid))
             return True
 
-    def add_tags(self, work, new_tags) -> None:
+    def __add_tags(self, work, new_tags) -> None:
         """Adds a new tag to a work"""
         try:
             work.subjects.extend(new_tags)
@@ -64,10 +64,10 @@ class AddNytBestsellerJob(AbstractBotJob):
                 'SUCCESSFULLY CREATED new subjects list with NYT tags'.format(
                     work.olid))
 
-    def request_book_import_by_isbn(self, book_isbn) -> None:
+    def __request_book_import_by_isbn(self, book_isbn) -> None:
         """ Makes request to the book_isbn
         https://openlibrary.org/isbn/{book_isbn} """
-        url = 'https://openlibrary.org/isbn/{}'.format(book_isbn)
+        url = self.OL_IMPORT_URL_TEMPLATE.format(book_isbn)
         try:
             if not self.dry_run:
                 requests.get(url)
@@ -75,19 +75,22 @@ class AddNytBestsellerJob(AbstractBotJob):
         except Exception as e:
             self.logger.error('Failed to make request to {}'.format(url))
 
-    def save_job_resutls(self, job_results) -> None:
+    def __save_job_results(self, job_results) -> None:
         self.logger.info('Job execution results: {}'.format(repr(job_results)))
         with open('add_nyt_bestseller_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
-    def process_found_bestseller_edition(self, bstslr_record_isbn,
+    def __process_found_bestseller_edition(self, bstslr_record_isbn,
         bstslr_edition, new_tags, comment, job_results) -> None:
-        if self.need_to_add_nyt_bestseller_tag(bstslr_edition.work):
+        if not bstslr_edition.work:
+            raise Exception('No work found for the edition with isbn {}'
+                            .format(bstslr_record_isbn))
+        if self.__need_to_add_nyt_bestseller_tag(bstslr_edition.work):
             self.logger.info(
                 'The NYT tags to be added for the work {} of the edition {}'
                     .format(bstslr_edition.work.olid,
                             bstslr_record_isbn))
-            self.add_tags(bstslr_edition.work, new_tags)
+            self.__add_tags(bstslr_edition.work, new_tags)
             bstslr_edition.work.save(comment)
             bstslr_edition.save(comment)
             job_results['tags_added'] = job_results['tags_added'] + 1
@@ -99,7 +102,8 @@ class AddNytBestsellerJob(AbstractBotJob):
             job_results['tags_already_exist'] = \
                 job_results['tags_already_exist'] + 1
 
-    def process_bestseller_group_record(self, bestseller_group_record, comment,
+    def __process_bestseller_group_record(self, bestseller_group_record,
+        comment,
         job_results) -> None:
         new_tags = ['{}{}={}'.format(
             self.NYT_TAG_PREFIX,
@@ -111,15 +115,15 @@ class AddNytBestsellerJob(AbstractBotJob):
                 bstslr_edition = self.ol.Edition.get(
                     isbn=bstslr_record_isbn)
                 if bstslr_edition:
-                    self.process_found_bestseller_edition(bstslr_record_isbn,
-                                                          bstslr_edition,
-                                                          new_tags, comment,
-                                                          job_results)
+                    self.__process_found_bestseller_edition(bstslr_record_isbn,
+                                                            bstslr_edition,
+                                                            new_tags, comment,
+                                                            job_results)
                 else:
                     self.logger.info(
                         'The edition {} doesnt exist in OL, importing'
                             .format(bstslr_record_isbn))
-                    self.request_book_import_by_isbn(bstslr_record_isbn)
+                    self.__request_book_import_by_isbn(bstslr_record_isbn)
                     job_results['books_imported'] = job_results[
                                                         'books_imported'] + 1
             except:
@@ -136,9 +140,9 @@ class AddNytBestsellerJob(AbstractBotJob):
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
             for bestseller_group_record in bestsellers_data:
-                self.process_bestseller_group_record(bestseller_group_record,
-                                                     comment, job_results)
-        self.save_job_resutls(job_results)
+                self.__process_bestseller_group_record(bestseller_group_record,
+                                                       comment, job_results)
+        self.__save_job_results(job_results)
 
 
 if __name__ == "__main__":
