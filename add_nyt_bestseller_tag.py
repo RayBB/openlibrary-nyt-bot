@@ -25,6 +25,7 @@ import json
 
 import requests
 from olclient.bots import AbstractBotJob
+from tqdm import tqdm
 
 
 class AddNytBestsellerJob(AbstractBotJob):
@@ -140,7 +141,7 @@ class AddNytBestsellerJob(AbstractBotJob):
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
-            for bestseller_group_record in bestsellers_data:
+            for bestseller_group_record in tqdm(bestsellers_data, unit="list_for_week"):
                 self.__process_bestseller_group_record(bestseller_group_record,
                                                        comment, job_results)
         self.__save_job_results(job_results)
