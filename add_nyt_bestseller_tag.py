@@ -90,9 +90,9 @@ class AddNytBestsellerJob(AbstractBotJob):
                 'The NYT tags to be added for the work {} of the edition {}'
                     .format(bstslr_edition.work.olid,
                             bstslr_record_isbn))
-            self.__add_tags(bstslr_edition.work, new_tags)
-            bstslr_edition.work.save(comment)
-            bstslr_edition.save(comment)
+            work = bstslr_edition.work
+            self.__add_tags(work, new_tags)
+            work.save(comment)
             job_results['tags_added'] = job_results['tags_added'] + 1
         else:
             self.logger.info(
@@ -132,6 +132,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                 job_results['isbns_failed'] = job_results['isbns_failed'] + 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
+        self.dry_run = self.args.dry_run
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'tags_added': 0, 'tags_already_exist': 0,
