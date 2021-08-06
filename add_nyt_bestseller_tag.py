@@ -83,7 +83,7 @@ class AddNytBestsellerJob(AbstractBotJob):
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
-        bstslr_edition, new_tags, comment, job_results) -> None:
+        bstslr_edition, new_tags, job_results) -> None:
         if not bstslr_edition.work:
             raise Exception('No work found for the edition with isbn {}'
                             .format(bstslr_record_isbn))
@@ -94,7 +94,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                             bstslr_record_isbn))
             work = bstslr_edition.work
             self.__add_tags(work, new_tags)
-            work.save(comment)
+            self.save(work.save)
             job_results['tags_added'] = job_results['tags_added'] + 1
         else:
             self.logger.info(
@@ -105,7 +105,6 @@ class AddNytBestsellerJob(AbstractBotJob):
                 job_results['tags_already_exist'] + 1
 
     def __process_bestseller_group_record(self, bestseller_group_record,
-        comment,
         job_results) -> None:
         new_tags = ['{}{}={}'.format(
             self.NYT_TAG_PREFIX,
@@ -119,7 +118,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                 if bstslr_edition:
                     self.__process_found_bestseller_edition(bstslr_record_isbn,
                                                             bstslr_edition,
-                                                            new_tags, comment,
+                                                            new_tags,
                                                             job_results)
                 else:
                     self.logger.info(
@@ -142,17 +141,18 @@ class AddNytBestsellerJob(AbstractBotJob):
                 job_results['isbns_failed'] = job_results['isbns_failed'] + 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
+        self.dry_run = self.args.dry_run
+        self.limit = None
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'tags_added': 0, 'tags_already_exist': 0,
                        'isbns_failed': 0, 'dry_run': self.dry_run}
-        comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
             for bestseller_group_record in tqdm(bestsellers_data,
                                                 unit="list_for_week"):
                 self.__process_bestseller_group_record(bestseller_group_record,
-                                                       comment, job_results)
+                                                    job_results)
         self.__save_job_results(job_results)
 
 
