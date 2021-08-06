@@ -26,6 +26,7 @@ from signal import signal, SIGINT
 
 import requests
 from olclient.bots import AbstractBotJob
+from tqdm import tqdm
 
 
 class AddNytBestsellerJob(AbstractBotJob):
@@ -91,9 +92,9 @@ class AddNytBestsellerJob(AbstractBotJob):
                 'The NYT tags to be added for the work {} of the edition {}'
                     .format(bstslr_edition.work.olid,
                             bstslr_record_isbn))
-            self.__add_tags(bstslr_edition.work, new_tags)
-            bstslr_edition.work.save(comment)
-            bstslr_edition.save(comment)
+            work = bstslr_edition.work
+            self.__add_tags(work, new_tags)
+            work.save(comment)
             job_results['tags_added'] = job_results['tags_added'] + 1
         else:
             self.logger.info(
@@ -148,7 +149,8 @@ class AddNytBestsellerJob(AbstractBotJob):
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
-            for bestseller_group_record in bestsellers_data:
+            for bestseller_group_record in tqdm(bestsellers_data,
+                                                unit="list_for_week"):
                 self.__process_bestseller_group_record(bestseller_group_record,
                                                        comment, job_results)
         self.__save_job_results(job_results)

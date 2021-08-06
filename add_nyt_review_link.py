@@ -24,6 +24,7 @@ from signal import signal, SIGINT
 
 import requests
 from olclient.bots import AbstractBotJob
+from tqdm import tqdm
 
 
 class AddNytReviewJob(AbstractBotJob):
@@ -152,7 +153,7 @@ class AddNytReviewJob(AbstractBotJob):
                     job_results['books_imported'] + 1
         except SystemExit:
             self.logger.info('Interrupted the bot while processing ISBN {}'
-                                  .format(review_record_isbn))
+                             .format(review_record_isbn))
             job_results['isbns_failed'] = job_results['isbns_failed'] + 1
             self.__save_job_results(job_results)
             raise
@@ -169,9 +170,16 @@ class AddNytReviewJob(AbstractBotJob):
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             review_record_array = json.load(fin)
-            for review_record in review_record_array:
-                self.__process_review_record(review_record,
-                                             comment, job_results)
+            last_shown_on_progress_bar = 0
+            progress_bar_capacity = len(review_record_array)
+            with tqdm(total=progress_bar_capacity, unit='reviews') as pbar:
+                for index, review_record in enumerate(review_record_array):
+                    self.__process_review_record(review_record,
+                                                 comment, job_results)
+                    if index > 0 and index % 25 == 0:
+                        last_shown_on_progress_bar = index
+                        pbar.update(25)
+                pbar.update(progress_bar_capacity - last_shown_on_progress_bar)
         self.__save_job_results(job_results)
 
 
