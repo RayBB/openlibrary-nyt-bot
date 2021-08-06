@@ -151,7 +151,7 @@ class AddNytBestsellerJob(AbstractBotJob):
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
             for bestseller_group_record in tqdm(bestsellers_data,
-                                                unit="list_for_week"):
+                                                unit="list"):
                 self.__process_bestseller_group_record(bestseller_group_record,
                                                        comment, job_results)
         self.__save_job_results(job_results)
