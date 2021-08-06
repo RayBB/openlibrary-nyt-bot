@@ -22,6 +22,7 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 """
 
 import json
+from signal import signal, SIGINT
 
 import requests
 from olclient.bots import AbstractBotJob
@@ -125,8 +126,16 @@ class AddNytBestsellerJob(AbstractBotJob):
                         'The edition {} doesnt exist in OL, importing'
                             .format(bstslr_record_isbn))
                     self.__request_book_import_by_isbn(bstslr_record_isbn)
-                    job_results['books_imported'] = job_results[
-                                                        'books_imported'] + 1
+                    job_results['books_imported'] = \
+                        job_results['books_imported'] + 1
+            except SystemExit:
+                self.logger.info('Interrupted the bot '
+                                 'while processing ISBN {}'
+                                 .format(bstslr_record_isbn))
+                job_results['isbns_failed'] = \
+                    job_results['isbns_failed'] + 1
+                self.__save_job_results(job_results)
+                raise
             except:
                 self.logger.exception('Failed to process ISBN {}'
                                       .format(bstslr_record_isbn))
@@ -141,13 +150,21 @@ class AddNytBestsellerJob(AbstractBotJob):
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
-            for bestseller_group_record in tqdm(bestsellers_data, unit="list_for_week"):
+            for bestseller_group_record in tqdm(bestsellers_data,
+                                                unit="list_for_week"):
                 self.__process_bestseller_group_record(bestseller_group_record,
                                                        comment, job_results)
         self.__save_job_results(job_results)
 
 
+def handler(signal_received, frame):
+    msg = 'SIGINT or CTRL-C detected. Interrupting the bot'
+    job.logger.info(msg)
+    exit(0)
+
+
 if __name__ == "__main__":
+    signal(SIGINT, handler)
     job = AddNytBestsellerJob()
 
     try:

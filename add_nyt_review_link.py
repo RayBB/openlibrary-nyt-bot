@@ -20,9 +20,11 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 """
 
 import json
+from signal import signal, SIGINT
 
 import requests
 from olclient.bots import AbstractBotJob
+from tqdm import tqdm
 
 
 class AddNytReviewJob(AbstractBotJob):
@@ -53,14 +55,14 @@ class AddNytReviewJob(AbstractBotJob):
         try:
             work.links.append(link_struct)
             self.logger.info(
-                'Successfully appended new link with NYT rewiew to work {} {}'
-                    .format(work.olid, repr(work)))
+                'Successfully appended new link with NYT rewiew to work {}'
+                    .format(work.olid))
         except AttributeError:
             work.links = [link_struct]
             self.logger.info(
                 'Failed to append links list for work {} but '
-                'SUCCESSFULLY CREATED new links list with NYT review {}'
-                    .format(work.olid, repr(work)))
+                'SUCCESSFULLY CREATED new links list with NYT review'
+                    .format(work.olid))
 
     def __request_book_import_by_isbn(self, book_isbn) -> None:
         """ Makes request to the book_isbn
@@ -149,6 +151,12 @@ class AddNytReviewJob(AbstractBotJob):
                 self.__request_book_import_by_isbn(review_record_isbn)
                 job_results['books_imported'] = \
                     job_results['books_imported'] + 1
+        except SystemExit:
+            self.logger.info('Interrupted the bot while processing ISBN {}'
+                             .format(review_record_isbn))
+            job_results['isbns_failed'] = job_results['isbns_failed'] + 1
+            self.__save_job_results(job_results)
+            raise
         except:
             self.logger.exception('Failed to process ISBN {}'
                                   .format(review_record_isbn))
@@ -162,13 +170,27 @@ class AddNytReviewJob(AbstractBotJob):
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             review_record_array = json.load(fin)
-            for review_record in review_record_array:
-                self.__process_review_record(review_record,
-                                             comment, job_results)
+            last_shown_on_progress_bar = 0
+            progress_bar_capacity = len(review_record_array)
+            with tqdm(total=progress_bar_capacity, unit='reviews') as pbar:
+                for index, review_record in enumerate(review_record_array):
+                    self.__process_review_record(review_record,
+                                                 comment, job_results)
+                    if index > 0 and index % 25 == 0:
+                        last_shown_on_progress_bar = index
+                        pbar.update(25)
+                pbar.update(progress_bar_capacity - last_shown_on_progress_bar)
         self.__save_job_results(job_results)
 
 
+def handler(signal_received, frame):
+    msg = 'SIGINT or CTRL-C detected. Interrupting the bot'
+    job.logger.info(msg)
+    exit(0)
+
+
 if __name__ == "__main__":
+    signal(SIGINT, handler)
     job = AddNytReviewJob()
 
     try:
