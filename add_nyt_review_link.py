@@ -30,6 +30,7 @@ from tqdm import tqdm
 class AddNytReviewJob(AbstractBotJob):
     URL_STARTS_WITH = 'http'
     NYT_REVIEW_DEFAULT_TITLE = 'New York Times review'
+    NYT_TAG_REVIEWED = 'New York Times reviewed'
     OL_LINK_TYPE_KEY_VALUE = '/type/link'
     OL_IMPORT_URL_TEMPLATE = 'https://openlibrary.org/isbn/{}'
 
@@ -41,7 +42,7 @@ class AddNytReviewJob(AbstractBotJob):
         the same link in the links section"""
         try:
             for lnk in work.links:
-                if lnk.url.startswith(link):
+                if lnk.get('url', '').startswith(link):
                     return False
             return True
         except AttributeError:
@@ -53,9 +54,18 @@ class AddNytReviewJob(AbstractBotJob):
     def __add_link(self, work, link_struct) -> None:
         """Adds a new link to a work"""
         try:
+            # check if there is an http version of the same link, if so update it.
+            for lnk in work.links:
+                if lnk.get('url') == link_struct['url'].replace('https://', 'http://'):
+                    lnk['url'] = link_struct['url']
+                    self.logger.info(
+                        'Successfully updated NYT review with https for work {}'
+                            .format(work.olid))
+                    return None
+
             work.links.append(link_struct)
             self.logger.info(
-                'Successfully appended new link with NYT rewiew to work {}'
+                'Successfully appended new link with NYT review to work {}'
                     .format(work.olid))
         except AttributeError:
             work.links = [link_struct]
@@ -70,7 +80,6 @@ class AddNytReviewJob(AbstractBotJob):
         url = self.OL_IMPORT_URL_TEMPLATE.format(book_isbn)
         try:
             if not self.dry_run:
-                self.logger.info('Made ACTUAL request to {}'.format(url))
                 requests.get(url)
             self.logger.info('Made request to {}'.format(url))
         except Exception as e:
@@ -81,11 +90,27 @@ class AddNytReviewJob(AbstractBotJob):
         with open('add_nyt_review_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
+    def __add_bestseller_review_tag(self, work, subject_to_add: str, job_results):
+        """Adds a tag to the work if it is a bestseller"""
+        try:
+            if subject_to_add not in work.subjects:
+                work.subjects.append(subject_to_add)
+                job_results['subjects_added'] += 1
+            else:
+                self.logger.info("subject already existed")
+                job_results['subjects_already_exist'] += 1
+        except:
+            work.subjects = [subject_to_add]
+            job_results['subjects_added'] += 1
+
+
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
         bstslr_edition, link_struct, job_results) -> None:
         if not bstslr_edition.work:
             raise Exception('No work found for the edition with isbn {}'
                             .format(bstslr_record_isbn))
+        work = bstslr_edition.work
+        self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED, job_results)
         if self.__need_to_add_nyt_review_link(bstslr_edition.work,
                                               link_struct['url']):
             self.logger.info(
@@ -101,8 +126,7 @@ class AddNytReviewJob(AbstractBotJob):
                 'A NYT link already exists for the work {}'
                 ' of the edition {}, skipping'
                     .format(bstslr_edition.work.olid, bstslr_record_isbn))
-            job_results['links_already_exist'] = \
-                job_results['links_already_exist'] + 1
+            job_results['links_already_exist'] += 1
 
     def __parse_review_record(self, review_record) -> (str, str):
         parsed_url = ''
@@ -148,8 +172,7 @@ class AddNytReviewJob(AbstractBotJob):
                     'The edition {} doesnt exist in OL, importing'
                         .format(review_record_isbn))
                 self.__request_book_import_by_isbn(review_record_isbn)
-                job_results['books_imported'] = \
-                    job_results['books_imported'] + 1
+                job_results['books_imported'] += 1
         except SystemExit:
             self.logger.info('Interrupted the bot while processing ISBN {}'
                              .format(review_record_isbn))
@@ -167,7 +190,9 @@ class AddNytReviewJob(AbstractBotJob):
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'links_added': 0, 'links_already_exist': 0,
-                       'isbns_failed': 0, 'dry_run': self.dry_run}
+                       'isbns_failed': 0, 'dry_run': self.dry_run
+                       ,'subjects_added': 0, 'subjects_already_exist': 0}
+        comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             review_record_array = json.load(fin)
             last_shown_on_progress_bar = 0
