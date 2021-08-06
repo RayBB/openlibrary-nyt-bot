@@ -30,6 +30,7 @@ from tqdm import tqdm
 class AddNytReviewJob(AbstractBotJob):
     URL_STARTS_WITH = 'http'
     NYT_REVIEW_DEFAULT_TITLE = 'New York Times review'
+    NYT_TAG_REVIEWED = 'New York Times reviewed'
     OL_LINK_TYPE_KEY_VALUE = '/type/link'
     OL_IMPORT_URL_TEMPLATE = 'https://openlibrary.org/isbn/{}'
 
@@ -41,7 +42,7 @@ class AddNytReviewJob(AbstractBotJob):
         the same link in the links section"""
         try:
             for lnk in work.links:
-                if lnk.url.startswith(link):
+                if lnk.get('url', '').startswith(link):
                     return False
             return True
         except AttributeError:
@@ -53,16 +54,21 @@ class AddNytReviewJob(AbstractBotJob):
     def __add_link(self, work, link_struct) -> None:
         """Adds a new link to a work"""
         try:
+            # check if there is an http version of the same link, if so update it.
+            for lnk in work.links:
+                if lnk.get('url') == link_struct['url'].replace('https://', 'http://'):
+                    lnk['url'] = link_struct['url']
+                    self.logger.info(
+                        'Successfully updated NYT review with https for work {}'
+                            .format(work.olid))
+                    return None
+
             work.links.append(link_struct)
             self.logger.info(
-                'Successfully appended new link with NYT rewiew to work {}'
+                'Successfully appended new link with NYT review to work {}'
                     .format(work.olid))
         except AttributeError:
             work.links = [link_struct]
-            self.logger.info(
-                'Failed to append links list for work {} but '
-                'SUCCESSFULLY CREATED new links list with NYT review'
-                    .format(work.olid))
 
     def __request_book_import_by_isbn(self, book_isbn) -> None:
         """ Makes request to the book_isbn
@@ -79,12 +85,28 @@ class AddNytReviewJob(AbstractBotJob):
         self.logger.info('Job execution results: {}'.format(repr(job_results)))
         with open('add_nyt_review_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
+    
+    def __add_bestseller_review_tag(self, work, subject_to_add: str, job_results):
+        """Adds a tag to the work if it is a bestseller"""
+        try:
+            if subject_to_add not in work.subjects:
+                work.subjects.append(subject_to_add)
+                job_results['subjects_added'] += 1
+            else:
+                self.logger.info("subject already existed")
+                job_results['subjects_already_exist'] += 1
+        except:
+            work.subjects = [subject_to_add]
+            job_results['subjects_added'] += 1
+            
 
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
         bstslr_edition, link_struct, comment, job_results) -> None:
         if not bstslr_edition.work:
             raise Exception('No work found for the edition with isbn {}'
                             .format(bstslr_record_isbn))
+        work = bstslr_edition.work
+        self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED, job_results)
         if self.__need_to_add_nyt_review_link(bstslr_edition.work,
                                               link_struct['url']):
             self.logger.info(
@@ -92,17 +114,16 @@ class AddNytReviewJob(AbstractBotJob):
                 'for the work {} of the edition {}'
                     .format(bstslr_edition.work.olid,
                             bstslr_record_isbn))
-            self.__add_link(bstslr_edition.work, link_struct)
-            bstslr_edition.work.save(comment)
-            bstslr_edition.save(comment)
-            job_results['links_added'] = job_results['links_added'] + 1
+            self.__add_link(work, link_struct)
+            work.save(comment)
+            job_results['links_added'] += 1
         else:
+            work.save('Add NYT review subject')
             self.logger.info(
                 'A NYT link already exists for the work {}'
                 ' of the edition {}, skipping'
                     .format(bstslr_edition.work.olid, bstslr_record_isbn))
-            job_results['links_already_exist'] = \
-                job_results['links_already_exist'] + 1
+            job_results['links_already_exist'] += 1
 
     def __parse_review_record(self, review_record) -> (str, str):
         parsed_url = ''
@@ -149,8 +170,7 @@ class AddNytReviewJob(AbstractBotJob):
                     'The edition {} doesnt exist in OL, importing'
                         .format(review_record_isbn))
                 self.__request_book_import_by_isbn(review_record_isbn)
-                job_results['books_imported'] = \
-                    job_results['books_imported'] + 1
+                job_results['books_imported'] += 1
         except SystemExit:
             self.logger.info('Interrupted the bot while processing ISBN {}'
                              .format(review_record_isbn))
@@ -166,20 +186,13 @@ class AddNytReviewJob(AbstractBotJob):
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'links_added': 0, 'links_already_exist': 0,
-                       'isbns_failed': 0, 'dry_run': self.dry_run}
+                       'isbns_failed': 0, 'dry_run': self.dry_run
+                       ,'subjects_added': 0, 'subjects_already_exist': 0}
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             review_record_array = json.load(fin)
-            last_shown_on_progress_bar = 0
-            progress_bar_capacity = len(review_record_array)
-            with tqdm(total=progress_bar_capacity, unit='reviews') as pbar:
-                for index, review_record in enumerate(review_record_array):
-                    self.__process_review_record(review_record,
-                                                 comment, job_results)
-                    if index > 0 and index % 25 == 0:
-                        last_shown_on_progress_bar = index
-                        pbar.update(25)
-                pbar.update(progress_bar_capacity - last_shown_on_progress_bar)
+            for review_record in tqdm(review_record_array, unit='reviews'):
+                self.__process_review_record(review_record, comment, job_results)
         self.__save_job_results(job_results)
 
 
