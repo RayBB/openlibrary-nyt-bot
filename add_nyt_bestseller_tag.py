@@ -142,6 +142,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                 job_results['isbns_failed'] = job_results['isbns_failed'] + 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
+        self.dry_run = self.args.dry_run
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'tags_added': 0, 'tags_already_exist': 0,
