@@ -56,7 +56,8 @@ class AddNytReviewJob(AbstractBotJob):
         try:
             # check if there is an http version of the same link, if so update it.
             for lnk in work.links:
-                if lnk.get('url') == link_struct['url'].replace('https://', 'http://'):
+                if lnk.get('url') == link_struct['url'].replace('https://',
+                                                                'http://'):
                     lnk['url'] = link_struct['url']
                     self.logger.info(
                         'Successfully updated NYT review with https for work {}'
@@ -86,7 +87,8 @@ class AddNytReviewJob(AbstractBotJob):
         with open('add_nyt_review_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
-    def __add_bestseller_review_tag(self, work, subject_to_add: str, job_results):
+    def __add_bestseller_review_tag(self, work, subject_to_add: str,
+        job_results):
         """Adds a tag to the work if it is a bestseller"""
         try:
             if subject_to_add not in work.subjects:
@@ -99,16 +101,16 @@ class AddNytReviewJob(AbstractBotJob):
             work.subjects = [subject_to_add]
             job_results['subjects_added'] += 1
 
-
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
         bstslr_edition, link_struct, comment, job_results) -> None:
         if not bstslr_edition.work:
             raise Exception('No work found for the edition with isbn {}'
                             .format(bstslr_record_isbn))
         work = bstslr_edition.work
-        self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED, job_results)
+        self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED,
+                                         job_results)
         workSaveClosure = work.save(comment)
-        if self.__need_to_add_nyt_review_link(work,link_struct['url']):
+        if self.__need_to_add_nyt_review_link(work, link_struct['url']):
             self.logger.info(
                 'The NYT review link to be added '
                 'for the work {} of the edition {}'
@@ -189,12 +191,13 @@ class AddNytReviewJob(AbstractBotJob):
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'links_added': 0, 'links_already_exist': 0,
                        'isbns_failed': 0, 'dry_run': self.dry_run
-                       ,'subjects_added': 0, 'subjects_already_exist': 0}
+            , 'subjects_added': 0, 'subjects_already_exist': 0}
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             review_record_array = json.load(fin)
             for review_record in tqdm(review_record_array, unit='reviews'):
-                self.__process_review_record(review_record, comment, job_results)
+                self.__process_review_record(review_record, comment,
+                                             job_results)
         self.__save_job_results(job_results)
 
 
