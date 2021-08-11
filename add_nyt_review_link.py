@@ -13,7 +13,7 @@ The list of reviews to add is a json file of the following format:
     ],
 ]
 This script would be called from the command line like so:
-$ python3 add_nyt_review.py --file=~/nyt_reviews.json --dry-run=True
+$ python3 add_nyt_review_link.py --file=~/nyt_reviews.json --dry-run=True
 NOTE: This script checks if there is a link in the links with the same URL
 If there is no such book with requested isbn in the OL, the script makes request
 by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
