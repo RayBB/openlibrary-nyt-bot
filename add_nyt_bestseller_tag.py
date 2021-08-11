@@ -94,8 +94,8 @@ class AddNytBestsellerJob(AbstractBotJob):
                             bstslr_record_isbn))
             work = bstslr_edition.work
             self.__add_tags(work, new_tags)
-            saveWorkClosure = work.save(comment)
-            self.save(saveWorkClosure)
+            work_save_closure = work.save(comment)
+            self.save(work_save_closure)
             job_results['tags_added'] += 1
         else:
             self.logger.info(
