@@ -109,7 +109,6 @@ class AddNytReviewJob(AbstractBotJob):
         work = bstslr_edition.work
         self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED,
                                          job_results)
-        workSaveClosure = work.save(comment)
         if self.__need_to_add_nyt_review_link(work, link_struct['url']):
             self.logger.info(
                 'The NYT review link to be added '
@@ -117,10 +116,12 @@ class AddNytReviewJob(AbstractBotJob):
                     .format(bstslr_edition.work.olid,
                             bstslr_record_isbn))
             self.__add_link(work, link_struct)
-            self.save(workSaveClosure)
+            work_save_closure = work.save(comment)
+            self.save(work_save_closure)
             job_results['links_added'] += 1
         else:
-            self.save(workSaveClosure)
+            work_save_closure = work.save(comment)
+            self.save(work_save_closure)
             self.logger.info(
                 'A NYT link already exists for the work {}'
                 ' of the edition {}, skipping'
