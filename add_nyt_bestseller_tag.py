@@ -94,15 +94,15 @@ class AddNytBestsellerJob(AbstractBotJob):
                             bstslr_record_isbn))
             work = bstslr_edition.work
             self.__add_tags(work, new_tags)
-            work.save(comment)
-            job_results['tags_added'] = job_results['tags_added'] + 1
+            saveWorkClosure = work.save(comment)
+            self.save(saveWorkClosure)
+            job_results['tags_added'] += 1
         else:
             self.logger.info(
                 'A NYT tag already exists for the work {}'
                 ' of the edition {}, skipping'
                     .format(bstslr_edition.work.olid, bstslr_record_isbn))
-            job_results['tags_already_exist'] = \
-                job_results['tags_already_exist'] + 1
+            job_results['tags_already_exist'] += 1
 
     def __process_bestseller_group_record(self, bestseller_group_record,
         comment,
@@ -126,23 +126,22 @@ class AddNytBestsellerJob(AbstractBotJob):
                         'The edition {} doesnt exist in OL, importing'
                             .format(bstslr_record_isbn))
                     self.__request_book_import_by_isbn(bstslr_record_isbn)
-                    job_results['books_imported'] = \
-                        job_results['books_imported'] + 1
+                    job_results['books_imported'] += 1
             except SystemExit:
                 self.logger.info('Interrupted the bot '
                                  'while processing ISBN {}'
                                  .format(bstslr_record_isbn))
-                job_results['isbns_failed'] = \
-                    job_results['isbns_failed'] + 1
+                job_results['isbns_failed'] += 1
                 self.__save_job_results(job_results)
                 raise
             except:
                 self.logger.exception('Failed to process ISBN {}'
                                       .format(bstslr_record_isbn))
-                job_results['isbns_failed'] = job_results['isbns_failed'] + 1
+                job_results['isbns_failed'] += 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
         self.dry_run = self.args.dry_run
+        self.limit = None
         self.dry_run_declaration()
         job_results = {'input_file': self.args.file, 'books_imported': 0,
                        'tags_added': 0, 'tags_already_exist': 0,
