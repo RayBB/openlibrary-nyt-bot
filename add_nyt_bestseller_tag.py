@@ -42,56 +42,43 @@ class AddNytBestsellerJob(AbstractBotJob):
         a tag that starts with 'nyt:'"""
         try:
             for subj in work.subjects:
-                if subj.startswith((self.NYT_TAG_PREFIX,
-                                    self.NYT_TAG_BESTSELLER)):
+                if subj.startswith((self.NYT_TAG_PREFIX, self.NYT_TAG_BESTSELLER)):
                     return False
             return True
         except AttributeError:
-            self.logger.info(
-                'Failed to check subjects for work {}, no subject list exist'
-                    .format(work.olid))
+            self.logger.info(f'Failed to check subjects for work {work.olid}, no subject list exist')
             return True
 
     def __add_tags(self, work, new_tags) -> None:
         """Adds a new tag to a work"""
         try:
             work.subjects.extend(new_tags)
-            self.logger.info(
-                'Successfully extended new NYT tags to work {}'.format(
-                    work.olid))
         except AttributeError:
             work.subjects = new_tags
-            self.logger.info(
-                'Failed to append subjects list for work {} but '
-                'SUCCESSFULLY CREATED new subjects list with NYT tags'.format(
-                    work.olid))
 
     def __request_book_import_by_isbn(self, book_isbn) -> None:
-        """ Makes request to the book_isbn
+        """ Makes request to the book_isbn endpoint to attempt automatic import
         https://openlibrary.org/isbn/{book_isbn} """
         url = self.OL_IMPORT_URL_TEMPLATE.format(book_isbn)
         try:
             if not self.dry_run:
                 requests.get(url)
-            self.logger.info('Made request to {}'.format(url))
+            self.logger.info(f'Made request to {url}')
         except Exception as e:
-            self.logger.error('Failed to make request to {}'.format(url))
+            self.logger.error(f'Failed to make request to {url}')
 
     def __save_job_results(self, job_results) -> None:
-        self.logger.info('Job execution results: {}'.format(repr(job_results)))
+        self.logger.info(f'Job execution results: {repr(job_results)}')
         with open('add_nyt_bestseller_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
         bstslr_edition, new_tags, comment, job_results) -> None:
         if not bstslr_edition.work:
-            raise Exception('No work found for the edition with isbn {}'
-                            .format(bstslr_record_isbn))
+            raise Exception(f'No work found for the edition with isbn {bstslr_record_isbn}')
         if self.__need_to_add_nyt_bestseller_tag(bstslr_edition.work):
             self.logger.info(
-                'The NYT tags to be added for the work {} of the edition {}'
-                    .format(bstslr_edition.work.olid,
-                            bstslr_record_isbn))
+                f'The NYT tags to be added for the work {bstslr_edition.work.olid} of the edition {bstslr_record_isbn}')
             work = bstslr_edition.work
             self.__add_tags(work, new_tags)
             work_save_closure = work.save(comment)
@@ -99,9 +86,8 @@ class AddNytBestsellerJob(AbstractBotJob):
             job_results['tags_added'] += 1
         else:
             self.logger.info(
-                'A NYT tag already exists for the work {}'
-                ' of the edition {}, skipping'
-                    .format(bstslr_edition.work.olid, bstslr_record_isbn))
+                f'A NYT tag already exists for the work {bstslr_edition.work.olid}'
+                f' of the edition {bstslr_record_isbn}, skipping')
             job_results['tags_already_exist'] += 1
 
     def __process_bestseller_group_record(self, bestseller_group_record,
@@ -122,21 +108,16 @@ class AddNytBestsellerJob(AbstractBotJob):
                                                             new_tags, comment,
                                                             job_results)
                 else:
-                    self.logger.info(
-                        'The edition {} doesnt exist in OL, importing'
-                            .format(bstslr_record_isbn))
+                    self.logger.info(f'The edition {bstslr_record_isbn} doesn\'t exist in OL, importing')
                     self.__request_book_import_by_isbn(bstslr_record_isbn)
                     job_results['books_imported'] += 1
             except SystemExit:
-                self.logger.info('Interrupted the bot '
-                                 'while processing ISBN {}'
-                                 .format(bstslr_record_isbn))
+                self.logger.info(f'Interrupted the bot while processing ISBN {bstslr_record_isbn}')
                 job_results['isbns_failed'] += 1
                 self.__save_job_results(job_results)
                 raise
             except:
-                self.logger.exception('Failed to process ISBN {}'
-                                      .format(bstslr_record_isbn))
+                self.logger.exception(f'Failed to process ISBN {bstslr_record_isbn}')
                 job_results['isbns_failed'] += 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
