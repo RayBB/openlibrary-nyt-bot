@@ -23,6 +23,7 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 
 import json
 from signal import signal, SIGINT
+import logging
 
 import requests
 from olclient.bots import AbstractBotJob
@@ -36,6 +37,8 @@ class AddNytBestsellerJob(AbstractBotJob):
 
     def __init__(self):
         super().__init__(job_name='AddNytBestseller')
+        # You can change this to logging.DEBUG if you want to see all logs
+        self.logger.setLevel(logging.INFO)
 
     def __need_to_add_nyt_bestseller_tag(self, work) -> bool:
         """Returns False if the book already has
@@ -46,7 +49,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                     return False
             return True
         except AttributeError:
-            self.logger.info(f'Failed to check subjects for work {work.olid}, no subject list exist')
+            self.logger.debug(f'Failed to check subjects for work {work.olid}, no subject list exist')
             return True
 
     def __add_tags(self, work, new_tags) -> None:
@@ -80,13 +83,10 @@ class AddNytBestsellerJob(AbstractBotJob):
                 f'The NYT tags to be added for the work {bstslr_edition.work.olid} of the edition {bstslr_record_isbn}')
             work = bstslr_edition.work
             self.__add_tags(work, new_tags)
-            work_save_closure = work.save(comment)
-            self.save(work_save_closure)
+            self.save(lambda: work.save(comment=comment))
             job_results['tags_added'] += 1
         else:
-            self.logger.info(
-                f'A NYT tag already exists for the work {bstslr_edition.work.olid}'
-                f' of the edition {bstslr_record_isbn}, skipping')
+            self.logger.debug(f'A NYT tag already exists for the work {bstslr_edition.work.olid} of the edition {bstslr_record_isbn}')
             job_results['tags_already_exist'] += 1
 
     def __process_bestseller_group_record(self, bestseller_group_record, comment, job_results) -> None:
@@ -97,12 +97,11 @@ class AddNytBestsellerJob(AbstractBotJob):
             self.NYT_TAG_BESTSELLER]
         for bstslr_record_isbn in bestseller_group_record['isbns']:
             try:
-                bstslr_edition = self.ol.Edition.get(
-                    isbn=bstslr_record_isbn)
+                bstslr_edition = self.ol.Edition.get(isbn=bstslr_record_isbn)
                 if bstslr_edition:
                     self.__process_found_bestseller_edition(bstslr_record_isbn, bstslr_edition, new_tags, comment, job_results)
                 else:
-                    self.logger.info(f'The edition {bstslr_record_isbn} doesn\'t exist in OL, importing')
+                    self.logger.debug(f'The edition {bstslr_record_isbn} doesn\'t exist in OL, importing')
                     self.__request_book_import_by_isbn(bstslr_record_isbn)
                     job_results['books_imported'] += 1
                     job_results['books_imported_isbns'].append(bstslr_record_isbn)
@@ -114,18 +113,30 @@ class AddNytBestsellerJob(AbstractBotJob):
             except:
                 self.logger.exception(f'Failed to process ISBN {bstslr_record_isbn}')
                 job_results['isbns_failed'] += 1
+            job_results['total_books_processed'] += 1
+            # the update() function adds one to the progress bar
+            self.__progress_bar.update(1)
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
         self.dry_run = self.args.dry_run
+        # limit could be set to 1 to only change the first book
         self.limit = None
         self.dry_run_declaration()
-        job_results = {'input_file': self.args.file, 'books_imported': 0, 'books_imported_isbns': [],
-                       'tags_added': 0, 'tags_already_exist': 0, 'isbns_failed': 0, 'dry_run': self.dry_run}
         comment = 'Add NYT bestseller tag'
-        with open(self.args.file, 'r') as fin:
-            bestsellers_data = json.load(fin)
-            for bestseller_group_record in tqdm(bestsellers_data, unit="list"):
-                self.__process_bestseller_group_record(bestseller_group_record, comment, job_results)
+        with open(self.args.file, 'r') as f:
+            bestsellers_data = json.load(f)
+        
+        total_books = sum([len(i['isbns']) for i in bestsellers_data])
+
+        job_results = {'input_file': self.args.file,
+                        'total_books_to_process': total_books,
+                        'total_books_processed': 0,
+                        'books_imported': 0, 'books_imported_isbns': [],
+                       'tags_added': 0, 'tags_already_exist': 0, 'isbns_failed': 0, 'dry_run': self.dry_run}
+        self.__progress_bar = tqdm(total=total_books, unit='books')
+
+        for bestseller_group_record in bestsellers_data:
+            self.__process_bestseller_group_record(bestseller_group_record, comment, job_results)
         self.__save_job_results(job_results)
 
 
