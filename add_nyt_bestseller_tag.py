@@ -63,7 +63,6 @@ class AddNytBestsellerJob(AbstractBotJob):
         try:
             if not self.dry_run:
                 requests.get(url)
-            self.logger.info(f'Made request to {url}')
         except Exception as e:
             self.logger.error(f'Failed to make request to {url}')
 
@@ -90,9 +89,7 @@ class AddNytBestsellerJob(AbstractBotJob):
                 f' of the edition {bstslr_record_isbn}, skipping')
             job_results['tags_already_exist'] += 1
 
-    def __process_bestseller_group_record(self, bestseller_group_record,
-        comment,
-        job_results) -> None:
+    def __process_bestseller_group_record(self, bestseller_group_record, comment, job_results) -> None:
         new_tags = ['{}{}={}'.format(
             self.NYT_TAG_PREFIX,
             bestseller_group_record['list_name_encoded'],
@@ -103,14 +100,12 @@ class AddNytBestsellerJob(AbstractBotJob):
                 bstslr_edition = self.ol.Edition.get(
                     isbn=bstslr_record_isbn)
                 if bstslr_edition:
-                    self.__process_found_bestseller_edition(bstslr_record_isbn,
-                                                            bstslr_edition,
-                                                            new_tags, comment,
-                                                            job_results)
+                    self.__process_found_bestseller_edition(bstslr_record_isbn, bstslr_edition, new_tags, comment, job_results)
                 else:
                     self.logger.info(f'The edition {bstslr_record_isbn} doesn\'t exist in OL, importing')
                     self.__request_book_import_by_isbn(bstslr_record_isbn)
                     job_results['books_imported'] += 1
+                    job_results['books_imported_isbns'].append(bstslr_record_isbn)
             except SystemExit:
                 self.logger.info(f'Interrupted the bot while processing ISBN {bstslr_record_isbn}')
                 job_results['isbns_failed'] += 1
@@ -124,16 +119,13 @@ class AddNytBestsellerJob(AbstractBotJob):
         self.dry_run = self.args.dry_run
         self.limit = None
         self.dry_run_declaration()
-        job_results = {'input_file': self.args.file, 'books_imported': 0,
-                       'tags_added': 0, 'tags_already_exist': 0,
-                       'isbns_failed': 0, 'dry_run': self.dry_run}
+        job_results = {'input_file': self.args.file, 'books_imported': 0, 'books_imported_isbns': [],
+                       'tags_added': 0, 'tags_already_exist': 0, 'isbns_failed': 0, 'dry_run': self.dry_run}
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as fin:
             bestsellers_data = json.load(fin)
-            for bestseller_group_record in tqdm(bestsellers_data,
-                                                unit="list"):
-                self.__process_bestseller_group_record(bestseller_group_record,
-                                                       comment, job_results)
+            for bestseller_group_record in tqdm(bestsellers_data, unit="list"):
+                self.__process_bestseller_group_record(bestseller_group_record, comment, job_results)
         self.__save_job_results(job_results)
 
 
