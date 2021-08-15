@@ -44,10 +44,8 @@ class AddNytBestsellerJob(AbstractBotJob):
         """Returns False if the book already has
         a tag that starts with 'nyt:'"""
         try:
-            for subj in work.subjects:
-                if subj.startswith((self.NYT_TAG_PREFIX, self.NYT_TAG_BESTSELLER)):
-                    return False
-            return True
+            subjects_to_add = (self.NYT_TAG_PREFIX, self.NYT_TAG_BESTSELLER)
+            return not any(subj.startswith(subjects_to_add) for subj in work.subjects)
         except AttributeError:
             self.logger.debug(f'Failed to check subjects for work {work.olid}, no subject list exist')
             return True
