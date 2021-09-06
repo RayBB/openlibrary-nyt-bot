@@ -7,6 +7,14 @@ A temporary repo while actively developing the nyt bot for Open Library
 
 `main.py` can be ignored. Was my first pass at getting data from NYT API. However, it turns out the history endpoint is buggy (doesn't work for some ISBNs that were retrieved from the lists endpoint). 
 
+## Setup
+
+1. Install requirements `pip install -r requirements.txt`
+1. Set the environment variable `NYT_API_KEY` to be able to call the NYT API
+1. [Configure](https://github.com/internetarchive/openlibrary-client#configuration) Open Library CLI
+1. Run `python main2.py` - this will get the bestsellers for this week and put them in `result.json`
+1. Run `python add_nyt_bestseller_tag.py --file=result.json --dry-run=True` to add
+
 ## Bulk Imports
 
 NYT bot was run in August 2021 to do bulk imports for the following historical data:
