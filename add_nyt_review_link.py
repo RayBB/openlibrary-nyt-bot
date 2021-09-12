@@ -28,6 +28,9 @@ import requests
 from olclient import OpenLibrary, config
 from olclient.bots import AbstractBotJob
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+load_dotenv()  # take environment variables from .env
 
 
 class AddNytReviewJob(AbstractBotJob):
@@ -154,9 +157,8 @@ class AddNytReviewJob(AbstractBotJob):
         self.dry_run_declaration()
         comment = 'Add NYT review links'
         file_location = self.args.file if self.args.file is not None else 'results/bestseller_collection_results.json'
-        with open(file_location, 'r') as fin:
-            #TODO: this currently doesn't work since we changed formats
-            review_record_array = list(json.load(fin)['reviews'].values())
+        with open(file_location, 'r') as f:
+            review_record_array = list(json.load(f)['reviews'].values())
             for review_record in tqdm(review_record_array, unit='reviews'):
                 self.__process_review_record(review_record, comment)
         self.__save_job_results()
