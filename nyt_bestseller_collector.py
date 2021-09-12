@@ -93,7 +93,7 @@ def date_to_str(date: datetime):
 @click.command()
 @click.option('--output_file', default="result.json", help='Where to write the results')
 @click.option('--date-start', type=click.DateTime(formats=["%Y-%m-%d"]),
-              default=str(date.today()), help='Date to start adding books from. Defaults to today.')
+              default=str(date.today() - timedelta(30)), help='Date to start adding books from. Defaults to 30 days ago')
 @click.option('--date-end', type=click.DateTime(formats=["%Y-%m-%d"]),
               default=str(date.today()), help='Date to stop adding books from. Defaults to today.')
 def run_with_click(output_file, date_start, date_end):
