@@ -157,13 +157,13 @@ class AddNytReviewJob(AbstractBotJob):
         except SystemExit:
             self.logger.info('Interrupted the bot while processing ISBN {}'
                              .format(review_record_isbn))
-            job_results['isbns_failed'] = job_results['isbns_failed'] + 1
+            job_results['isbns_failed'] += 1
             self.__save_job_results(job_results)
             raise
         except:
             self.logger.exception('Failed to process ISBN {}'
                                   .format(review_record_isbn))
-            job_results['isbns_failed'] = job_results['isbns_failed'] + 1
+            job_results['isbns_failed'] += 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
         self.dry_run = self.args.dry_run
