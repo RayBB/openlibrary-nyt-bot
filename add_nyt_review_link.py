@@ -38,6 +38,9 @@ class AddNytReviewJob(AbstractBotJob):
 
     def __init__(self):
         super().__init__(job_name='AddNytReviewJob')
+        self.job_results = {'input_file': self.args.file, 'books_imported': 0, 'links_added': 0,
+                            'links_already_exist': 0, 'isbns_failed': 0, 'dry_run': self.dry_run,
+                            'subjects_added': 0, 'subjects_already_exist': 0}
 
     def __need_to_add_nyt_review_link(self, work, link) -> bool:
         """Returns False if the book already has
@@ -84,32 +87,30 @@ class AddNytReviewJob(AbstractBotJob):
         except Exception as e:
             self.logger.error('Failed to make request to {}'.format(url))
 
-    def __save_job_results(self, job_results) -> None:
-        self.logger.info('Job execution results: {}'.format(repr(job_results)))
+    def __save_job_results(self) -> None:
+        self.logger.info('Job execution results: {}'.format(repr(self.job_results)))
         with open('add_nyt_review_result.json', 'w', encoding='utf-8') as f:
-            json.dump(job_results, f, ensure_ascii=False, indent=4)
+            json.dump(self.job_results, f, ensure_ascii=False, indent=4)
 
-    def __add_bestseller_review_tag(self, work, subject_to_add: str,
-        job_results):
+    def __add_bestseller_review_tag(self, work, subject_to_add: str):
         """Adds a tag to the work if it is a bestseller"""
         try:
             if subject_to_add not in work.subjects:
                 work.subjects.append(subject_to_add)
-                job_results['subjects_added'] += 1
+                self.job_results['subjects_added'] += 1
             else:
-                job_results['subjects_already_exist'] += 1
+                self.job_results['subjects_already_exist'] += 1
         except:
             work.subjects = [subject_to_add]
-            job_results['subjects_added'] += 1
+            self.job_results['subjects_added'] += 1
 
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
-        bstslr_edition, link_struct, comment, job_results) -> None:
+        bstslr_edition, link_struct, comment) -> None:
         if not bstslr_edition.work:
             raise Exception('No work found for the edition with isbn {}'
                             .format(bstslr_record_isbn))
         work = bstslr_edition.work
-        self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED,
-                                         job_results)
+        self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED)
         if self.__need_to_add_nyt_review_link(work, link_struct['url']):
             self.logger.info(
                 'The NYT review link to be added '
@@ -119,7 +120,7 @@ class AddNytReviewJob(AbstractBotJob):
             self.__add_link(work, link_struct)
             work_save_closure = work.save(comment)
             self.save(work_save_closure)
-            job_results['links_added'] += 1
+            self.job_results['links_added'] += 1
         else:
             work_save_closure = work.save(comment)
             self.save(work_save_closure)
@@ -127,7 +128,7 @@ class AddNytReviewJob(AbstractBotJob):
                 'A NYT link already exists for the work {}'
                 ' of the edition {}, skipping'
                     .format(bstslr_edition.work.olid, bstslr_record_isbn))
-            job_results['links_already_exist'] += 1
+            self.job_results['links_already_exist'] += 1
 
     def __generate_new_link(self, url):
         return {
@@ -137,7 +138,7 @@ class AddNytReviewJob(AbstractBotJob):
                 'key': self.OL_LINK_TYPE_KEY_VALUE
             }
         }
-    def __process_review_record(self, review_record, comment, job_results) -> None:
+    def __process_review_record(self, review_record, comment) -> None:
         # TODO: handle multiple reviews
         new_link = self.__generate_new_link(review_record.get('reviews')[0])
         review_record_isbn = review_record.get('isbn')
@@ -146,41 +147,35 @@ class AddNytReviewJob(AbstractBotJob):
             if bstslr_edition:
                 self.__process_found_bestseller_edition(review_record_isbn,
                                                         bstslr_edition,
-                                                        new_link, comment,
-                                                        job_results)
+                                                        new_link, comment)
             else:
                 self.logger.info(
                     'The edition {} doesnt exist in OL, importing'
                         .format(review_record_isbn))
                 self.__request_book_import_by_isbn(review_record_isbn)
-                job_results['books_imported'] += 1
+                self.job_results['books_imported'] += 1
         except SystemExit:
             self.logger.info('Interrupted the bot while processing ISBN {}'
                              .format(review_record_isbn))
-            job_results['isbns_failed'] += 1
-            self.__save_job_results(job_results)
+            self.job_results['isbns_failed'] += 1
+            self.__save_job_results()
             raise
         except:
             self.logger.exception('Failed to process ISBN {}'
                                   .format(review_record_isbn))
-            job_results['isbns_failed'] += 1
+            self.job_results['isbns_failed'] += 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
         self.dry_run = self.args.dry_run
         self.limit = None
         self.dry_run_declaration()
-        job_results = {'input_file': self.args.file, 'books_imported': 0,
-                       'links_added': 0, 'links_already_exist': 0,
-                       'isbns_failed': 0, 'dry_run': self.dry_run
-            , 'subjects_added': 0, 'subjects_already_exist': 0}
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             #TODO: this currently doesn't work since we changed formats
             review_record_array = list(json.load(fin)['reviews'].values())
             for review_record in tqdm(review_record_array, unit='reviews'):
-                self.__process_review_record(review_record, comment,
-                                             job_results)
-        self.__save_job_results(job_results)
+                self.__process_review_record(review_record, comment)
+        self.__save_job_results()
 
 
 def handler(signal_received, frame):
