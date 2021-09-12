@@ -61,26 +61,28 @@ class AddNytReviewJob(AbstractBotJob):
             self.logger.debug(f'Failed to check link for work {work.olid}, no links list exist')
             return True
 
-    def __add_link(self, work, link_struct) -> None:
+    def __add_link(self, work, url) -> None:
         """Adds a new link to a work"""
-        if not self.__need_to_add_nyt_review_link(work, link_struct['url']):
+        if not self.__need_to_add_nyt_review_link(work, url):
             self.logger.debug(f'A NYT link already exists for the work {work.olid}')
             self.job_results['links_already_exist'] += 1
             return None
 
+        link_struct = self.__generate_new_link(url)
         try:
             # check if there is an http version of the same link, if so update it.
-            for lnk in work.links:
-                if lnk.get('url') == link_struct['url'].replace('https://', 'http://'):
-                    lnk['url'] = link_struct['url']
+            for link in work.links:
+                if link.get('url') == url.replace('https://', 'http://'):
+                    link['url'] = url
                     self.logger.debug(f'Successfully updated NYT review with https for work {work.olid}')
                     return None
 
             work.links.append(link_struct)
-            self.job_results['links_added'] += 1
-            self.logger.debug(f'Successfully appended new link with NYT review to work {work.olid}')
         except AttributeError:
             work.links = [link_struct]
+
+        self.job_results['links_added'] += 1
+        self.logger.debug(f'Successfully appended new link with NYT review to work {work.olid}')
 
     def __request_book_import_by_isbn(self, book_isbn) -> None:
         """ Makes request to the book_isbn
@@ -111,13 +113,12 @@ class AddNytReviewJob(AbstractBotJob):
             work.subjects = [subject_to_add]
             self.job_results['subjects_added'] += 1
 
-    def __process_found_bestseller_edition(self, bstslr_record_isbn,
-        bstslr_edition, link_struct, comment) -> None:
+    def __process_found_bestseller_edition(self, bstslr_record_isbn, bstslr_edition, review_urls, comment) -> None:
         if not bstslr_edition.work:
             raise Exception(f'No work found for the edition with isbn {bstslr_record_isbn}')
         work = bstslr_edition.work
         self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED)
-        self.__add_link(work, link_struct)
+        [self.__add_link(work, url) for url in review_urls]
         self.save(lambda: work.save(comment=comment))
 
     def __generate_new_link(self, url):
@@ -129,13 +130,12 @@ class AddNytReviewJob(AbstractBotJob):
             }
         }
     def __process_review_record(self, review_record, comment) -> None:
-        # TODO: handle multiple reviews
-        new_link = self.__generate_new_link(review_record.get('reviews')[0])
         review_record_isbn = review_record.get('isbn')
         try:
             bstslr_edition = self.ol.Edition.get(isbn=review_record_isbn)
             if bstslr_edition:
-                self.__process_found_bestseller_edition(review_record_isbn, bstslr_edition, new_link, comment)
+                review_urls = review_record.get('reviews')
+                self.__process_found_bestseller_edition(review_record_isbn, bstslr_edition, review_urls, comment)
             else:
                 self.logger.debug(f'The edition {review_record_isbn} doesnt exist in OL, importing')
                 self.__request_book_import_by_isbn(review_record_isbn)
