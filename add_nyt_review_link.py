@@ -51,9 +51,7 @@ class AddNytReviewJob(AbstractBotJob):
                     return False
             return True
         except AttributeError:
-            self.logger.info(
-                'Failed to check link for work {}, no links list exist'
-                    .format(work.olid))
+            self.logger.info(f'Failed to check link for work {work.olid}, no links list exist')
             return True
 
     def __add_link(self, work, link_struct) -> None:
@@ -64,15 +62,11 @@ class AddNytReviewJob(AbstractBotJob):
                 if lnk.get('url') == link_struct['url'].replace('https://',
                                                                 'http://'):
                     lnk['url'] = link_struct['url']
-                    self.logger.info(
-                        'Successfully updated NYT review with https for work {}'
-                            .format(work.olid))
+                    self.logger.info(f'Successfully updated NYT review with https for work {work.olid}')
                     return None
 
             work.links.append(link_struct)
-            self.logger.info(
-                'Successfully appended new link with NYT review to work {}'
-                    .format(work.olid))
+            self.logger.info(f'Successfully appended new link with NYT review to work {work.olid}')
         except AttributeError:
             work.links = [link_struct]
 
@@ -83,12 +77,13 @@ class AddNytReviewJob(AbstractBotJob):
         try:
             if not self.dry_run:
                 requests.get(url)
-            self.logger.info('Made request to {}'.format(url))
+            self.logger.info(f'Made request to {url}')
         except Exception as e:
-            self.logger.error('Failed to make request to {}'.format(url))
+            self.logger.error(f'Failed to make request to {url}')
+        self.job_results['books_imported'] += 1
 
     def __save_job_results(self) -> None:
-        self.logger.info('Job execution results: {}'.format(repr(self.job_results)))
+        self.logger.info(f'Job execution results: {repr(self.job_results)}')
         with open('add_nyt_review_result.json', 'w', encoding='utf-8') as f:
             json.dump(self.job_results, f, ensure_ascii=False, indent=4)
 
@@ -107,16 +102,12 @@ class AddNytReviewJob(AbstractBotJob):
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
         bstslr_edition, link_struct, comment) -> None:
         if not bstslr_edition.work:
-            raise Exception('No work found for the edition with isbn {}'
-                            .format(bstslr_record_isbn))
+            raise Exception(f'No work found for the edition with isbn {bstslr_record_isbn}')
         work = bstslr_edition.work
         self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED)
         if self.__need_to_add_nyt_review_link(work, link_struct['url']):
-            self.logger.info(
-                'The NYT review link to be added '
-                'for the work {} of the edition {}'
-                    .format(bstslr_edition.work.olid,
-                            bstslr_record_isbn))
+            self.logger.info(f'The NYT review link to be added for the work {bstslr_edition.work.olid} '
+                             f'of the edition {bstslr_record_isbn}')
             self.__add_link(work, link_struct)
             work_save_closure = work.save(comment)
             self.save(work_save_closure)
@@ -124,10 +115,8 @@ class AddNytReviewJob(AbstractBotJob):
         else:
             work_save_closure = work.save(comment)
             self.save(work_save_closure)
-            self.logger.info(
-                'A NYT link already exists for the work {}'
-                ' of the edition {}, skipping'
-                    .format(bstslr_edition.work.olid, bstslr_record_isbn))
+            self.logger.info(f'A NYT link already exists for the work {bstslr_edition.work.olid}'
+                             f' of the edition {bstslr_record_isbn}, skipping')
             self.job_results['links_already_exist'] += 1
 
     def __generate_new_link(self, url):
@@ -145,24 +134,17 @@ class AddNytReviewJob(AbstractBotJob):
         try:
             bstslr_edition = self.ol.Edition.get(isbn=review_record_isbn)
             if bstslr_edition:
-                self.__process_found_bestseller_edition(review_record_isbn,
-                                                        bstslr_edition,
-                                                        new_link, comment)
+                self.__process_found_bestseller_edition(review_record_isbn, bstslr_edition, new_link, comment)
             else:
-                self.logger.info(
-                    'The edition {} doesnt exist in OL, importing'
-                        .format(review_record_isbn))
+                self.logger.info(f'The edition {review_record_isbn} doesnt exist in OL, importing')
                 self.__request_book_import_by_isbn(review_record_isbn)
-                self.job_results['books_imported'] += 1
         except SystemExit:
-            self.logger.info('Interrupted the bot while processing ISBN {}'
-                             .format(review_record_isbn))
+            self.logger.info(f'Interrupted the bot while processing ISBN {review_record_isbn}')
             self.job_results['isbns_failed'] += 1
             self.__save_job_results()
             raise
         except:
-            self.logger.exception('Failed to process ISBN {}'
-                                  .format(review_record_isbn))
+            self.logger.exception(f'Failed to process ISBN {review_record_isbn}')
             self.job_results['isbns_failed'] += 1
 
     def run(self) -> None:  # overwrites the AbstractBotJob run method
