@@ -1,11 +1,10 @@
 # openlibrary-nyt-bot-temp
-A temporary repo while actively developing the nyt bot for Open Library
+A temporary repo while actively developing the NYT bot for Open Library.
 
-`main2.py` is current version of getting data from nyt api. Just uses overview api. The oldest data available from overview api is from `2008-06-02`.
-
-`add_nyt_bestseller_tag.py` is the code to actually add the nyt to the works.
-
-`main.py` can be ignored. Was my first pass at getting data from NYT API. However, it turns out the history endpoint is buggy (doesn't work for some ISBNs that were retrieved from the lists endpoint). 
+The bot has three primary goals:
+1. Notify Open Library of new books that they may not have imported yet
+2. Tag NYT best sellers and reviews
+3. Add links to NYT reviews
 
 ## Setup
 
@@ -16,6 +15,8 @@ A temporary repo while actively developing the nyt bot for Open Library
 4. Run `python nyt_bestseller_collector.py` - this will get the bestsellers for this week and put them in `result.json`
 5. Run `python add_nyt_bestseller_tag.py --dry-run=False` to add the bestseller tags
 6. Run `python add_nyt_review_link.py --dry-run=False` to add reviews
+
+`.env` file is supported and probably the easiest way to set env vars
 
 ## Bulk Imports
 
@@ -39,8 +40,10 @@ NYT bot was run in August 2021 to do bulk imports for the following historical d
 
 ## Future Plans
 
-1. Run the best seller scraper then import that data once per week (preferably on wednesdays when list is released). I recommend scraping the last month just to double check if books may be importable at later times.
-2. For reviews... well there is no way to get all reviews. But we can get reviews of bestsellers. So that will be made part of the scrape for bestsellers.
+1. Run the bestseller scraper then import that data once per week (preferably on wednesdays when list is released). 
+I recommend scraping the last month just to double check if books may be importable at later times.
+2. For reviews... well there is no way to get all reviews. But we can get reviews of bestsellers. 
+So that will be made part of the scrape for bestsellers.
 
 ## Testing
 
