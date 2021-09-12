@@ -24,11 +24,15 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 import json
 from signal import signal, SIGINT
 import logging
+import os
 
 import requests
 from olclient.bots import AbstractBotJob
+from olclient import OpenLibrary, config
 from tqdm import tqdm
+from dotenv import load_dotenv
 
+load_dotenv()  # take environment variables from .env
 
 class AddNytBestsellerJob(AbstractBotJob):
     NYT_TAG_PREFIX = 'nyt:'
@@ -122,8 +126,8 @@ class AddNytBestsellerJob(AbstractBotJob):
         self.dry_run_declaration()
         comment = 'Add NYT bestseller tag'
         with open(self.args.file, 'r') as f:
-            bestsellers_data = json.load(f)
-        
+            bestsellers_data = json.load(f)['bestsellers']
+
         total_books = sum([len(i['isbns']) for i in bestsellers_data])
 
         job_results = {'input_file': self.args.file,
@@ -147,6 +151,9 @@ def handler(signal_received, frame):
 if __name__ == "__main__":
     signal(SIGINT, handler)
     job = AddNytBestsellerJob()
+    if 'OL_ACCESS_KEY' in os.environ and 'OL_SECRET_KEY' in os.environ:
+        job.ol = OpenLibrary(credentials=config.Credentials(access=os.environ.get('OL_ACCESS_KEY'),
+                                                            secret=os.environ.get('OL_SECRET_KEY')))
 
     try:
         job.run()

@@ -4,6 +4,9 @@ import json
 import os
 from time import sleep
 from datetime import date, datetime, timedelta
+from dotenv import load_dotenv
+
+load_dotenv()  # take environment variables from .env
 
 API_KEY = os.getenv('NYT_API_KEY')
 HOST = "https://api.nytimes.com"
@@ -39,6 +42,8 @@ def first_time_on_list(list, book):
 def process_overview_response_reviews(response):
     """
     Get all the reviews from an overview response
+    This is separated from the bestseller processing because reviews can be added after a book is already a bestseller.
+    But we only add bestsellers the first time they're on a list so that could leave out some.
     """
     outputs = {}
     for list in response.get('results').get('lists'):
@@ -58,7 +63,7 @@ def process_overview_response_reviews(response):
     return outputs
             
 
-def process_overview_response(response: dict, seen_isbns: set):
+def process_overview_response_bestsellers(response: dict, seen_isbns: set):
     outputs = []
     published_date = response.get('results').get('published_date')
     print(f"Processing date: {published_date}")
@@ -98,18 +103,19 @@ def date_to_str(date: datetime):
               default=str(date.today()), help='Date to stop adding books from. Defaults to today.')
 def run_with_click(output_file, date_start, date_end):
     current_date = date_start + timedelta(days=0)
-    outputs = []
+    bestsellers = []
     reviews = {}
     seen_isbns = set()
     while current_date <= date_end:
         overview = get_overview(current_date)
-        outputs.extend(process_overview_response(overview, seen_isbns))
+        bestsellers.extend(process_overview_response_bestsellers(overview, seen_isbns))
         reviews.update(process_overview_response_reviews(overview))
         current_date = current_date + timedelta(days=7)
 
-    write_result_to_disk(outputs, output_file)
-    write_result_to_disk(reviews, 'reviews.json')
+    write_result_to_disk({"reviews": reviews, "bestsellers": bestsellers}, output_file)
     print(f"{len(seen_isbns)} total books found between {date_start} and {date_end}")
 
 if __name__ == "__main__":
+    if API_KEY is None or len(API_KEY) == 0:
+        raise EnvironmentError(f"Failed because NYT_API_KEY is not set.")
     run_with_click()

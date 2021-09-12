@@ -10,10 +10,11 @@ A temporary repo while actively developing the nyt bot for Open Library
 ## Setup
 
 1. Install requirements `pip install -r requirements.txt`
-1. Set the environment variable `NYT_API_KEY` to be able to call the NYT API
-1. [Configure](https://github.com/internetarchive/openlibrary-client#configuration) Open Library CLI
-1. Run `python nyt_bestseller_collector.py` - this will get the bestsellers for this week and put them in `result.json`
-1. Run `python add_nyt_bestseller_tag.py --file=result.json --dry-run=True` to add
+2. Set the environment variable `NYT_API_KEY` to be able to call the NYT API
+3. [Configure](https://github.com/internetarchive/openlibrary-client#configuration) Open Library CLI
+   1. Alternatively, set `OL_ACCESS_KEY` and `OL_SECRET_KEY` env vars
+4. Run `python nyt_bestseller_collector.py` - this will get the bestsellers for this week and put them in `result.json`
+5. Run `python add_nyt_bestseller_tag.py --file=result.json --dry-run=False` to add the bestseller tags
 
 ## Bulk Imports
 

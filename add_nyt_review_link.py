@@ -20,9 +20,11 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 """
 
 import json
+import os
 from signal import signal, SIGINT
 
 import requests
+from olclient import OpenLibrary, config
 from olclient.bots import AbstractBotJob
 from tqdm import tqdm
 
@@ -195,7 +197,8 @@ class AddNytReviewJob(AbstractBotJob):
             , 'subjects_added': 0, 'subjects_already_exist': 0}
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
-            review_record_array = json.load(fin)
+            #TODO: this currently doesn't work since we changed formats
+            review_record_array = json.load(fin)['reviews']
             for review_record in tqdm(review_record_array, unit='reviews'):
                 self.__process_review_record(review_record, comment,
                                              job_results)
@@ -211,6 +214,9 @@ def handler(signal_received, frame):
 if __name__ == "__main__":
     signal(SIGINT, handler)
     job = AddNytReviewJob()
+    if 'OL_ACCESS_KEY' in os.environ and 'OL_SECRET_KEY' in os.environ:
+        job.ol = OpenLibrary(credentials=config.Credentials(access=os.environ.get('OL_ACCESS_KEY'),
+                                                            secret=os.environ.get('OL_SECRET_KEY')))
 
     try:
         job.run()
