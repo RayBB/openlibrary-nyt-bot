@@ -63,16 +63,21 @@ class AddNytReviewJob(AbstractBotJob):
 
     def __add_link(self, work, link_struct) -> None:
         """Adds a new link to a work"""
+        if not self.__need_to_add_nyt_review_link(work, link_struct['url']):
+            self.logger.debug(f'A NYT link already exists for the work {work.olid}')
+            self.job_results['links_already_exist'] += 1
+            return None
+
         try:
             # check if there is an http version of the same link, if so update it.
             for lnk in work.links:
-                if lnk.get('url') == link_struct['url'].replace('https://',
-                                                                'http://'):
+                if lnk.get('url') == link_struct['url'].replace('https://', 'http://'):
                     lnk['url'] = link_struct['url']
                     self.logger.debug(f'Successfully updated NYT review with https for work {work.olid}')
                     return None
 
             work.links.append(link_struct)
+            self.job_results['links_added'] += 1
             self.logger.debug(f'Successfully appended new link with NYT review to work {work.olid}')
         except AttributeError:
             work.links = [link_struct]
@@ -112,15 +117,7 @@ class AddNytReviewJob(AbstractBotJob):
             raise Exception(f'No work found for the edition with isbn {bstslr_record_isbn}')
         work = bstslr_edition.work
         self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED)
-        if self.__need_to_add_nyt_review_link(work, link_struct['url']):
-            self.logger.debug(f'The NYT review link to be added for the work {bstslr_edition.work.olid} '
-                             f'of the edition {bstslr_record_isbn}')
-            self.__add_link(work, link_struct)
-            self.job_results['links_added'] += 1
-        else:
-            self.logger.debug(f'A NYT link already exists for the work {bstslr_edition.work.olid}'
-                             f' of the edition {bstslr_record_isbn}, skipping')
-            self.job_results['links_already_exist'] += 1
+        self.__add_link(work, link_struct)
         self.save(lambda: work.save(comment=comment))
 
     def __generate_new_link(self, url):
