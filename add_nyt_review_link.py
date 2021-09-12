@@ -97,7 +97,6 @@ class AddNytReviewJob(AbstractBotJob):
                 work.subjects.append(subject_to_add)
                 job_results['subjects_added'] += 1
             else:
-                self.logger.info("subject already existed")
                 job_results['subjects_already_exist'] += 1
         except:
             work.subjects = [subject_to_add]
@@ -130,39 +129,18 @@ class AddNytReviewJob(AbstractBotJob):
                     .format(bstslr_edition.work.olid, bstslr_record_isbn))
             job_results['links_already_exist'] += 1
 
-    def __parse_review_record(self, review_record) -> (str, str):
-        parsed_url = ''
-        parsed_isbn = ''
-        url_not_found = True
-        if len(review_record) != 2:
-            raise Exception(
-                'Expected exactly 2 items in the review_record {}'.format(
-                    repr(review_record)))
-        for item_index, item in enumerate(review_record):
-            if item.startswith(self.URL_STARTS_WITH):
-                url_not_found = False
-                parsed_url = review_record[item_index]
-                if item_index == 0:
-                    parsed_isbn = review_record[1]
-                else:
-                    parsed_isbn = review_record[0]
-                break
-        if url_not_found:
-            raise Exception(
-                'Expected at least one item to start with'
-                ' {} in the review_record {}'
-                    .format(self.URL_STARTS_WITH, repr(review_record)))
-        return parsed_url, parsed_isbn
-
-    def __process_review_record(self, review_record, comment,
-        job_results) -> None:
-        new_link_type = {}
-        new_link_type['key'] = self.OL_LINK_TYPE_KEY_VALUE
-        new_link = {}
-        new_link['url'], review_record_isbn = self.__parse_review_record(
-            review_record)
-        new_link['title'] = self.NYT_REVIEW_DEFAULT_TITLE
-        new_link['type'] = new_link_type
+    def __generate_new_link(self, url):
+        return {
+            'url': url,
+            'title': self.NYT_REVIEW_DEFAULT_TITLE,
+            'type': {
+                'key': self.OL_LINK_TYPE_KEY_VALUE
+            }
+        }
+    def __process_review_record(self, review_record, comment, job_results) -> None:
+        # TODO: handle multiple reviews
+        new_link = self.__generate_new_link(review_record.get('reviews')[0])
+        review_record_isbn = review_record.get('isbn')
         try:
             bstslr_edition = self.ol.Edition.get(isbn=review_record_isbn)
             if bstslr_edition:
@@ -198,7 +176,7 @@ class AddNytReviewJob(AbstractBotJob):
         comment = 'Add NYT review links'
         with open(self.args.file, 'r') as fin:
             #TODO: this currently doesn't work since we changed formats
-            review_record_array = json.load(fin)['reviews']
+            review_record_array = list(json.load(fin)['reviews'].values())
             for review_record in tqdm(review_record_array, unit='reviews'):
                 self.__process_review_record(review_record, comment,
                                              job_results)
