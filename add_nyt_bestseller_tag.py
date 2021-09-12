@@ -73,7 +73,7 @@ class AddNytBestsellerJob(AbstractBotJob):
 
     def __save_job_results(self, job_results) -> None:
         self.logger.info(f'Job execution results: {repr(job_results)}')
-        with open('add_nyt_bestseller_result.json', 'w', encoding='utf-8') as f:
+        with open('results/add_nyt_bestseller_result.json', 'w', encoding='utf-8') as f:
             json.dump(job_results, f, ensure_ascii=False, indent=4)
 
     def __process_found_bestseller_edition(self, bstslr_record_isbn,
@@ -125,7 +125,8 @@ class AddNytBestsellerJob(AbstractBotJob):
         self.limit = None
         self.dry_run_declaration()
         comment = 'Add NYT bestseller tag'
-        with open(self.args.file, 'r') as f:
+        file_location = self.args.file if self.args.file is not None else 'results/bestseller_collection_results.json'
+        with open(file_location, 'r') as f:
             bestsellers_data = json.load(f)['bestsellers']
 
         total_books = sum([len(i['isbns']) for i in bestsellers_data])

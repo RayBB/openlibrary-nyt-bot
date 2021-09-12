@@ -96,7 +96,7 @@ def date_to_str(date: datetime):
     return date.strftime('%Y-%m-%d')
 
 @click.command()
-@click.option('--output_file', default="result.json", help='Where to write the results')
+@click.option('--output_file', default="results/bestseller_collection_results.json", help='Where to write the results')
 @click.option('--date-start', type=click.DateTime(formats=["%Y-%m-%d"]),
               default=str(date.today() - timedelta(30)), help='Date to start adding books from. Defaults to 30 days ago')
 @click.option('--date-end', type=click.DateTime(formats=["%Y-%m-%d"]),

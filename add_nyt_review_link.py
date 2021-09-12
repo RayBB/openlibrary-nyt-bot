@@ -88,7 +88,7 @@ class AddNytReviewJob(AbstractBotJob):
 
     def __save_job_results(self) -> None:
         self.logger.info(f'Job execution results: {repr(self.job_results)}')
-        with open('add_nyt_review_result.json', 'w', encoding='utf-8') as f:
+        with open('results/add_nyt_review_results.json', 'w', encoding='utf-8') as f:
             json.dump(self.job_results, f, ensure_ascii=False, indent=4)
 
     def __add_bestseller_review_tag(self, work, subject_to_add: str):
@@ -153,7 +153,8 @@ class AddNytReviewJob(AbstractBotJob):
         self.limit = None
         self.dry_run_declaration()
         comment = 'Add NYT review links'
-        with open(self.args.file, 'r') as fin:
+        file_location = self.args.file if self.args.file is not None else 'results/bestseller_collection_results.json'
+        with open(file_location, 'r') as fin:
             #TODO: this currently doesn't work since we changed formats
             review_record_array = list(json.load(fin)['reviews'].values())
             for review_record in tqdm(review_record_array, unit='reviews'):
