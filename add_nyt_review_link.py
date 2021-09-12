@@ -22,6 +22,7 @@ by the book isbn https://openlibrary.org/isbn/{isbn} , triggering auto import
 import json
 import os
 from signal import signal, SIGINT
+import logging
 
 import requests
 from olclient import OpenLibrary, config
@@ -42,6 +43,9 @@ class AddNytReviewJob(AbstractBotJob):
                             'links_already_exist': 0, 'isbns_failed': 0, 'dry_run': self.dry_run,
                             'subjects_added': 0, 'subjects_already_exist': 0}
 
+        # You can change this to logging.DEBUG if you want to see all logs
+        self.logger.setLevel(logging.INFO)
+
     def __need_to_add_nyt_review_link(self, work, link) -> bool:
         """Returns False if the book already has
         the same link in the links section"""
@@ -51,7 +55,7 @@ class AddNytReviewJob(AbstractBotJob):
                     return False
             return True
         except AttributeError:
-            self.logger.info(f'Failed to check link for work {work.olid}, no links list exist')
+            self.logger.debug(f'Failed to check link for work {work.olid}, no links list exist')
             return True
 
     def __add_link(self, work, link_struct) -> None:
@@ -62,11 +66,11 @@ class AddNytReviewJob(AbstractBotJob):
                 if lnk.get('url') == link_struct['url'].replace('https://',
                                                                 'http://'):
                     lnk['url'] = link_struct['url']
-                    self.logger.info(f'Successfully updated NYT review with https for work {work.olid}')
+                    self.logger.debug(f'Successfully updated NYT review with https for work {work.olid}')
                     return None
 
             work.links.append(link_struct)
-            self.logger.info(f'Successfully appended new link with NYT review to work {work.olid}')
+            self.logger.debug(f'Successfully appended new link with NYT review to work {work.olid}')
         except AttributeError:
             work.links = [link_struct]
 
@@ -106,18 +110,15 @@ class AddNytReviewJob(AbstractBotJob):
         work = bstslr_edition.work
         self.__add_bestseller_review_tag(work, self.NYT_TAG_REVIEWED)
         if self.__need_to_add_nyt_review_link(work, link_struct['url']):
-            self.logger.info(f'The NYT review link to be added for the work {bstslr_edition.work.olid} '
+            self.logger.debug(f'The NYT review link to be added for the work {bstslr_edition.work.olid} '
                              f'of the edition {bstslr_record_isbn}')
             self.__add_link(work, link_struct)
-            work_save_closure = work.save(comment)
-            self.save(work_save_closure)
             self.job_results['links_added'] += 1
         else:
-            work_save_closure = work.save(comment)
-            self.save(work_save_closure)
-            self.logger.info(f'A NYT link already exists for the work {bstslr_edition.work.olid}'
+            self.logger.debug(f'A NYT link already exists for the work {bstslr_edition.work.olid}'
                              f' of the edition {bstslr_record_isbn}, skipping')
             self.job_results['links_already_exist'] += 1
+        self.save(lambda: work.save(comment=comment))
 
     def __generate_new_link(self, url):
         return {
@@ -136,7 +137,7 @@ class AddNytReviewJob(AbstractBotJob):
             if bstslr_edition:
                 self.__process_found_bestseller_edition(review_record_isbn, bstslr_edition, new_link, comment)
             else:
-                self.logger.info(f'The edition {review_record_isbn} doesnt exist in OL, importing')
+                self.logger.debug(f'The edition {review_record_isbn} doesnt exist in OL, importing')
                 self.__request_book_import_by_isbn(review_record_isbn)
         except SystemExit:
             self.logger.info(f'Interrupted the bot while processing ISBN {review_record_isbn}')
