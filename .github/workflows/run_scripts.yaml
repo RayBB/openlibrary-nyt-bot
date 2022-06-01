@@ -1,5 +1,7 @@
 name: Run Scripts
 on: [push]
+#  schedule:
+#    - cron: "0 13 * * 3" # Every Wednesday at 1PM UTC (9AM EST)
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
@@ -10,5 +12,7 @@ jobs:
         python-version: '3.9'
     - run: pip install -r requirements.txt
     - run: python nyt_bestseller_collector.py
+      env:
+        NYT_API_KEY: ${{ secrets.NYT_API_KEY }}
     - run: python add_nyt_bestseller_tag.py --dry-run=False
     - run: python add_nyt_review_link.py --dry-run=False
