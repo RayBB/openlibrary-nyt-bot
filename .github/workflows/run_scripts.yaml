@@ -5,6 +5,9 @@ on: [push]
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
+    env:
+      OL_ACCESS_KEY: ${{ secrets.OL_ACCESS_KEY }}
+      OL_SECRET_KEY: ${{ secrets.OL_SECRET_KEY }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-python@v3
