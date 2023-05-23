@@ -1,10 +1,19 @@
-# openlibrary-nyt-bot-temp
-A temporary repo while actively developing the NYT bot for Open Library.
+# openlibrary-nyt-bot
 
-The bot has three primary goals:
+The bot has three goals:
 1. Notify Open Library of new books that they may not have imported yet
 2. Tag NYT best sellers and reviews
 3. Add links to NYT reviews
+
+## Current Status
+
+### Account
+The changes made by this bot are visible [here](https://openlibrary.org/people/nyt_bestsellers_bot). The profile mentions another repo but this is the actual code running.
+
+### Schedule
+This bot runs via GitHub Actions [here](https://github.com/RayBB/openlibrary-nyt-bot-temp/blob/main/.github/workflows/run_scripts.yaml) every Wednesday at 10AM EST. You can see the results of the actions [here](https://github.com/RayBB/openlibrary-nyt-bot-temp/actions). 
+
+PS: This workflow is automatically [disabled every 60 days](https://docs.github.com/en/actions/managing-workflow-runs/disabling-and-enabling-a-workflow) by GitHub unless there is activity in the repo. Thankfully, they send me an email with one button to click to re-enable it.
 
 ## Setup
 
@@ -38,21 +47,18 @@ NYT bot was run in August 2021 to do bulk imports for the following historical d
 * Missing reviewed books successfully imported: 1,435
 * Subject tag and link added to all books found in open library
 
-## Future Plans
-
-1. Run the bestseller scraper then import that data once per week (preferably on wednesdays when list is released). 
-I recommend scraping the last month just to double check if books may be importable at later times.
-2. For reviews... well there is no way to get all reviews. But we can get reviews of bestsellers. 
-So that will be made part of the scrape for bestsellers.
-
 ## Testing
 
-Testing checklist for bestsellers:
-If no nyt subjects exist, add them ✅
-If both nyt subjects exist, make no change ✅
-If one nyt subject is missing, add the other - not yet
+Checklist for bestsellers:
+- If no nyt subjects exist, add them ✅
+- If both nyt subjects exist, make no change ✅
+- If one nyt subject is missing, add the other - not yet
 
+Checklist for reviews:
+- If review doesn't exist, add it ✅
+- If review subject doesn't exist, add it ✅
 
-Testing checklist for review bot:
-If review doesn't exist, add it ✅
-If review subject doesn't exist, add it ✅
+## Limitations
+
+There is no way to get all reviews. But we can get reviews of bestsellers. 
+As such, reviews of books aren't on the bestseller list are not added by this bot.
