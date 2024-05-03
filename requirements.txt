@@ -1,5 +1,5 @@
 requests==2.*
 click==7.1.2
 openlibrary-client==0.0.30
-tqdm==4.62.0
+tqdm==4.66.3
 python-dotenv==0.19.0
